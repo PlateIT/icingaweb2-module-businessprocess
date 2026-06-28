@@ -194,12 +194,12 @@ class ObjectRepository
 
         return match ($kind) {
             'namespace' => self::namespaceChildren($uuid, $namespaceInclude),
-            'deployment' => self::ownedBy('replicaset', 'replica_set_owner', 'replica_set_uuid', $uuid),
-            'replicaset' => self::ownedBy('pod', 'pod_owner', 'pod_uuid', $uuid),
-            'statefulset' => self::ownedBy('pod', 'pod_owner', 'pod_uuid', $uuid),
-            'daemonset' => self::ownedBy('pod', 'pod_owner', 'pod_uuid', $uuid),
-            'cronjob' => self::ownedBy('job', 'job_owner', 'job_uuid', $uuid),
-            'job' => self::ownedBy('pod', 'pod_owner', 'pod_uuid', $uuid),
+            'deployment' => self::ownedBy('replicaset', $uuid),
+            'replicaset' => self::ownedBy('pod', $uuid),
+            'statefulset' => self::ownedBy('pod', $uuid),
+            'daemonset' => self::ownedBy('pod', $uuid),
+            'cronjob' => self::ownedBy('job', $uuid),
+            'job' => self::ownedBy('pod', $uuid),
             'pod' => self::podChildren($uuid),
             default => []
         };
@@ -277,14 +277,12 @@ class ObjectRepository
         return $children;
     }
 
-    protected static function ownedBy(string $kind, string $ownerTable, string $foreignKey, string $ownerUuid): iterable
+    protected static function ownedBy(string $kind, string $ownerUuid): iterable
     {
         $model = self::createModel($kind);
-        $table = $model->getTableName();
         $query = $model::on(KubernetesDatabase::connection())
             ->columns(self::columnsFor($kind))
-            ->filter(Filter::equal("$ownerTable.owner_uuid", Uuid::fromString($ownerUuid)->getBytes()));
-        $query->getSelectBase()->join($ownerTable, "$ownerTable.$foreignKey = $table.uuid");
+            ->filter(Filter::equal('owner.owner_uuid', Uuid::fromString($ownerUuid)->getBytes()));
 
         return self::asChildList($kind, self::applyRestrictions($kind, $query));
     }

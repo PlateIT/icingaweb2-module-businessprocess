@@ -377,10 +377,13 @@ class AddNodeForm extends CompatForm
                     continue;
                 }
 
-                if (KubernetesObjectRepository::fetch($kubernetesNode[0], $kubernetesNode[1]) === null) {
+                $object = KubernetesObjectRepository::fetch($kubernetesNode[0], $kubernetesNode[1]);
+                if ($object === null) {
                     $term->setMessage($this->translate('Kubernetes object does not exist or access has been denied'));
                     continue;
                 }
+
+                $term->setLabel(implode(' / ', KubernetesObjectRepository::labelParts($kubernetesNode[0], $object)));
 
                 if ($this->parent !== null && $this->parent->hasChild($nodeName)) {
                     $term->setMessage($this->translate('Already defined in this process'));
