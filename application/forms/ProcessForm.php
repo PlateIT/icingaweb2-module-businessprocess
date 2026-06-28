@@ -109,7 +109,7 @@ class ProcessForm extends BpConfigBaseForm
                 $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
             }
 
-            $this->addElement('multiselect', 'namespaceInclude', [
+            $this->addElement('multiCheckbox', 'namespaceInclude', [
                 'label' => $this->translate('Namespace object types'),
                 'multiOptions' => $options,
                 'value' => $node->getNamespaceInclude()

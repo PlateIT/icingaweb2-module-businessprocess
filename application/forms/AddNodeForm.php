@@ -119,7 +119,9 @@ class AddNodeForm extends CompatForm
                     'new-process' => $this->translate('New Process')
                 ];
             } else {
-                $nodeTypes = [];
+                $nodeTypes = [
+                    'new-process' => $this->translate('New Process')
+                ];
             }
         }
 
@@ -415,7 +417,7 @@ class AddNodeForm extends CompatForm
                 $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
             }
 
-            $this->addElement('multiselect', 'namespaceInclude', [
+            $this->addElement('multiCheckbox', 'namespaceInclude', [
                 'label' => $this->translate('Namespace object types'),
                 'multiOptions' => $options,
                 'value' => KubernetesKind::DEFAULT_NAMESPACE_INCLUDE
