@@ -12,7 +12,9 @@ use Icinga\Exception\NotFoundError;
 use Icinga\Module\Businessprocess\Exception\NestingError;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
 use Icinga\Module\Businessprocess\ProvidedHook\Icingadb\IcingadbSupport;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName;
 use Icinga\Module\Businessprocess\State\IcingaDbState;
+use Icinga\Module\Businessprocess\State\KubernetesState;
 use Icinga\Module\Businessprocess\State\MonitoringState;
 use Icinga\Module\Businessprocess\Storage\LegacyStorage;
 use Icinga\Module\Monitoring\Backend\MonitoringBackend;
@@ -172,6 +174,7 @@ class BpConfig
         } else {
             MonitoringState::apply($this);
         }
+        KubernetesState::apply($this);
     }
 
     /**
@@ -515,6 +518,18 @@ class BpConfig
         return $node;
     }
 
+    public function createKubernetesNode(string $kind, string $uuid, bool $explicit = true): KubernetesNode
+    {
+        $node = new KubernetesNode((object) [
+            'kind'     => $kind,
+            'uuid'     => $uuid,
+            'explicit' => $explicit
+        ]);
+        $node->setBpConfig($this);
+        $this->nodes[$node->getName()] = $node;
+        return $node;
+    }
+
     public function calculateAllStates()
     {
         foreach ($this->getRootNodes() as $node) {
@@ -676,6 +691,10 @@ class BpConfig
             return $this->getImportedConfig($configName)->getNode($nodeName);
         }
 
+        if ($kubernetesNode = NodeName::parse($name)) {
+            return $this->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1]);
+        }
+
         // Fallback: if it is a service, create an empty one:
         $this->warn(sprintf('The node "%s" doesn\'t exist', $name));
 
@@ -771,7 +790,7 @@ class BpConfig
      */
     public function addNode($name, BpNode $node)
     {
-        if (array_key_exists($name, $this->nodes)) {
+        if (array_key_exists($name, $this->nodes) && $this->nodes[$name] !== $node) {
             $this->warn(
                 sprintf(
                     mt('businessprocess', 'Node "%s" has been defined twice'),

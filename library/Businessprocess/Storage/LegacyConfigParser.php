@@ -11,6 +11,8 @@ use Icinga\Exception\SystemPermissionException;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\Metadata;
+use Icinga\Module\Businessprocess\Kubernetes\Kind;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName;
 
 class LegacyConfigParser
 {
@@ -246,6 +248,32 @@ class LegacyConfigParser
         $bp->getBpNode($name)->setInfoUrl($url);
     }
 
+    protected function parseK8sOptions(&$line, BpConfig $bp)
+    {
+        $segments = preg_split('~\s*;\s*~', substr($line, 12));
+        $name = array_shift($segments);
+        $node = $bp->getNode($name);
+        if (! $node instanceof \Icinga\Module\Businessprocess\KubernetesNode) {
+            return;
+        }
+
+        foreach ($segments as $segment) {
+            if (strpos($segment, '=') === false) {
+                continue;
+            }
+
+            [$key, $value] = preg_split('~\s*=\s*~', $segment, 2);
+            if ($key === 'expand_dependencies') {
+                $node->setExpandDependencies($value === '1' || strtolower($value) === 'yes');
+            } elseif ($key === 'namespace_include') {
+                $node->setNamespaceInclude(array_values(array_intersect(
+                    $this->splitCommaSeparated($value),
+                    Kind::NAMESPACE_INCLUDE_OPTIONS
+                )));
+            }
+        }
+    }
+
     protected function parseStateOverrides(&$line, BpConfig $bp)
     {
         // state_overrides <bp-node>!<child>|n-n[,n-n]!<child>|n-n[,n-n]
@@ -279,6 +307,9 @@ class LegacyConfigParser
                 break;
             case 'info_url':
                 $this->parseInfoUrl($line, $bp);
+                break;
+            case 'k8s_options':
+                $this->parseK8sOptions($line, $bp);
                 break;
             case 'state_overrides':
                 $this->parseStateOverrides($line, $bp);
@@ -349,12 +380,17 @@ class LegacyConfigParser
             $value   = $m[3];
         }
 
-        $node = new BpNode((object) array(
-            'name'        => $name,
-            'operator'    => $op_name,
-            'child_names' => []
-        ));
-        $node->setBpConfig($bp);
+        if ($kubernetesNode = NodeName::parse($name)) {
+            $node = $bp->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1]);
+            $node->setChildNames([]);
+        } else {
+            $node = new BpNode((object) array(
+                'name'        => $name,
+                'operator'    => $op_name,
+                'child_names' => []
+            ));
+            $node->setBpConfig($bp);
+        }
 
         $cmps = preg_split('~\s*(?<!\\\\)\\' . $op . '\s*~', $value, -1, PREG_SPLIT_NO_EMPTY);
         foreach ($cmps as $val) {

@@ -8,6 +8,7 @@ namespace Icinga\Module\Businessprocess\Storage;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\ImportedNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
 
 class LegacyConfigRenderer
 {
@@ -127,7 +128,7 @@ class LegacyConfigRenderer
         $cfg = '';
 
         foreach ($node->getChildBpNodes() as $name => $child) {
-            if ($child instanceof ImportedNode) {
+            if ($child instanceof ImportedNode || ($child instanceof KubernetesNode && ! $child->isExplicit())) {
                 continue;
             }
 
@@ -174,6 +175,7 @@ class LegacyConfigRenderer
     public static function renderSingleBpNode(BpNode $node)
     {
         return static::renderExpression($node)
+            . static::renderK8sOptions($node)
             . static::renderStateOverrides($node)
             . static::renderDisplay($node)
             . static::renderInfoUrl($node);
@@ -185,6 +187,10 @@ class LegacyConfigRenderer
      */
     public static function renderExpression(BpNode $node)
     {
+        if ($node instanceof KubernetesNode) {
+            return sprintf("%s =\n", $node->getName());
+        }
+
         return sprintf(
             "%s %s %s\n",
             $node->getName(),
@@ -224,11 +230,27 @@ class LegacyConfigRenderer
                 "display %s;%s;%s\n",
                 $prio,
                 $node->getName(),
-                $node->getAlias()
+                method_exists($node, 'getStoredAlias') ? $node->getStoredAlias() : $node->getAlias()
             );
         } else {
             return '';
         }
+    }
+
+    public static function renderK8sOptions(BpNode $node)
+    {
+        if (! $node instanceof KubernetesNode || ! $node->isExplicit()) {
+            return '';
+        }
+
+        $options = [
+            'expand_dependencies=' . ($node->expandsDependencies() ? '1' : '0')
+        ];
+        if ($node->getKind() === 'namespace') {
+            $options[] = 'namespace_include=' . implode(',', $node->getNamespaceInclude());
+        }
+
+        return sprintf("k8s_options %s;%s\n", $node->getName(), implode(';', $options));
     }
 
     public static function renderStateOverrides(BpNode $node)

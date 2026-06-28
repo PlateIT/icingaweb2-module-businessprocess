@@ -6,6 +6,8 @@
 namespace Icinga\Module\Businessprocess\Forms;
 
 use Icinga\Module\Businessprocess\BpNode;
+use Icinga\Module\Businessprocess\Kubernetes\Kind as KubernetesKind;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
@@ -76,9 +78,14 @@ class ProcessForm extends BpConfigBaseForm
             )
         ));
 
+        if ($this->node instanceof KubernetesNode) {
+            $this->addKubernetesElements($this->node);
+        }
+
         if ($node = $this->node) {
             if ($node->hasAlias()) {
-                $this->getElement('alias')->setValue($node->getAlias());
+                $alias = $node instanceof KubernetesNode ? $node->getStoredAlias() : $node->getAlias();
+                $this->getElement('alias')->setValue($alias);
             }
             $this->getElement('operator')->setValue($node->getOperator());
             $this->getElement('display')->setValue($node->getDisplay());
@@ -88,6 +95,27 @@ class ProcessForm extends BpConfigBaseForm
         }
     }
 
+
+    protected function addKubernetesElements(KubernetesNode $node): void
+    {
+        $this->addElement('checkbox', 'expandDependencies', [
+            'label' => $this->translate('Expand Kubernetes dependencies'),
+            'value' => $node->expandsDependencies() ? '1' : '0'
+        ]);
+
+        if ($node->getKind() === 'namespace') {
+            $options = [];
+            foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+                $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
+            }
+
+            $this->addElement('multiselect', 'namespaceInclude', [
+                'label' => $this->translate('Namespace object types'),
+                'multiOptions' => $options,
+                'value' => $node->getNamespaceInclude()
+            ]);
+        }
+    }
     /**
      * @param BpNode $node
      * @return $this
@@ -125,8 +153,22 @@ class ProcessForm extends BpConfigBaseForm
             if ($url !== $node->getInfoUrl()) {
                 $modifications['infoUrl'] = $url;
             }
-            if ($alias !== $node->getAlias()) {
+            $currentAlias = $node instanceof KubernetesNode ? $node->getStoredAlias() : $node->getAlias();
+            if ($alias !== $currentAlias) {
                 $modifications['alias'] = $alias;
+            }
+            if ($node instanceof KubernetesNode) {
+                $expandDependencies = (bool) $this->getValue('expandDependencies');
+                if ($expandDependencies !== $node->expandsDependencies()) {
+                    $modifications['expandDependencies'] = $expandDependencies;
+                }
+
+                if ($node->getKind() === 'namespace') {
+                    $namespaceInclude = (array) ($this->getValue('namespaceInclude') ?: []);
+                    if ($namespaceInclude !== $node->getNamespaceInclude()) {
+                        $modifications['namespaceInclude'] = $namespaceInclude;
+                    }
+                }
             }
         } else {
             $modifications = array(

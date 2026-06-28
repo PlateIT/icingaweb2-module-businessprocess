@@ -9,6 +9,10 @@ use Exception;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\Common\Sort;
+use Icinga\Module\Businessprocess\Kubernetes\Feature as KubernetesFeature;
+use Icinga\Module\Businessprocess\Kubernetes\Kind as KubernetesKind;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName as KubernetesNodeName;
+use Icinga\Module\Businessprocess\Kubernetes\ObjectRepository as KubernetesObjectRepository;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Storage\Storage;
@@ -119,6 +123,10 @@ class AddNodeForm extends CompatForm
             }
         }
 
+        if (KubernetesFeature::isEnabled() && KubernetesObjectRepository::canAccessAny()) {
+            $nodeTypes['kubernetes'] = $this->translate('Kubernetes Object');
+        }
+
         $this->addHtml(new HtmlElement('h2', null, Text::create($title)));
 
         if (! empty($nodeTypes)) {
@@ -147,6 +155,8 @@ class AddNodeForm extends CompatForm
             $this->assembleHostElements();
         } elseif ($nodeType === 'service') {
             $this->assembleServiceElements();
+        } elseif ($nodeType === 'kubernetes') {
+            $this->assembleKubernetesElements();
         }
 
         $this->addElement('submit', 'submit', [
@@ -340,6 +350,78 @@ class AddNodeForm extends CompatForm
         }
     }
 
+
+    protected function assembleKubernetesElements(): void
+    {
+        $kindOptions = [];
+        foreach (KubernetesKind::SUPPORTED as $kind) {
+            $kindOptions[$kind] = KubernetesKind::title($kind);
+        }
+
+        $this->addElement('select', 'kubernetes_kind', [
+            'label' => $this->translate('Kubernetes Object Type'),
+            'multiOptions' => $kindOptions,
+            'class' => 'autosubmit',
+            'required' => true,
+            'ignore' => true
+        ]);
+
+        $kind = $this->getPopulatedValue('kubernetes_kind') ?: 'namespace';
+
+        $termValidator = function (array $terms) {
+            foreach ($terms as $term) {
+                $nodeName = $term->getSearchValue();
+                $kubernetesNode = KubernetesNodeName::parse($nodeName);
+                if ($kubernetesNode === null) {
+                    $term->setMessage($this->translate('Invalid Kubernetes object'));
+                    continue;
+                }
+
+                if (KubernetesObjectRepository::fetch($kubernetesNode[0], $kubernetesNode[1]) === null) {
+                    $term->setMessage($this->translate('Kubernetes object does not exist or access has been denied'));
+                    continue;
+                }
+
+                if ($this->parent !== null && $this->parent->hasChild($nodeName)) {
+                    $term->setMessage($this->translate('Already defined in this process'));
+                }
+            }
+        };
+
+        $this->addElement(
+            (new TermInput('children'))
+                ->setRequired()
+                ->setLabel($this->translate('Kubernetes Objects'))
+                ->setVerticalTermDirection()
+                ->setSuggestionUrl(Url::fromPath('businessprocess/suggestions/kubernetes-object', [
+                    'kind' => $kind,
+                    'showCompact' => true,
+                    '_disableLayout' => true
+                ]))
+                ->on(TermInput::ON_ENRICH, $termValidator)
+                ->on(TermInput::ON_ADD, $termValidator)
+                ->on(TermInput::ON_PASTE, $termValidator)
+                ->on(TermInput::ON_SAVE, $termValidator)
+        );
+
+        $this->addElement('checkbox', 'expandDependencies', [
+            'label' => $this->translate('Expand Kubernetes dependencies'),
+            'value' => '1'
+        ]);
+
+        if ($kind === 'namespace') {
+            $options = [];
+            foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+                $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
+            }
+
+            $this->addElement('multiselect', 'namespaceInclude', [
+                'label' => $this->translate('Namespace object types'),
+                'multiOptions' => $options,
+                'value' => KubernetesKind::DEFAULT_NAMESPACE_INCLUDE
+            ]);
+        }
+    }
     protected function createChildrenElementForObjects(string $label, string $suggestionsPath): TermInput
     {
         $termValidator = function (array $terms) {
@@ -386,6 +468,38 @@ class AddNodeForm extends CompatForm
             $children = array_unique(array_map(function ($term) {
                 return $term->getSearchValue();
             }, $term->getTerms()));
+
+            if ($nodeType === 'kubernetes') {
+                foreach ($children as $nodeName) {
+                    if (! ($kubernetesNode = KubernetesNodeName::parse($nodeName))) {
+                        continue;
+                    }
+
+                    if ($this->bp->hasNode($nodeName)) {
+                        if ($this->parent !== null) {
+                            $changes->addChildrenToNode([$nodeName], $this->parent);
+                        } else {
+                            $changes->copyNode($nodeName);
+                        }
+                        continue;
+                    }
+
+                    $properties = [
+                        'kind' => $kubernetesNode[0],
+                        'uuid' => $kubernetesNode[1],
+                        'expandDependencies' => (bool) $this->getValue('expandDependencies'),
+                        'namespaceInclude' => (array) ($this->getValue('namespaceInclude') ?: KubernetesKind::DEFAULT_NAMESPACE_INCLUDE),
+                    ];
+                    if ($this->parent !== null) {
+                        $properties['parentName'] = $this->parent->getName();
+                    } else {
+                        $properties['display'] = 1;
+                    }
+                    $changes->createNode($nodeName, $properties);
+                }
+                unset($changes);
+                return;
+            }
 
             if ($nodeType === 'host' || $nodeType === 'service') {
                 $stateOverrides = $this->getValue('stateOverrides');

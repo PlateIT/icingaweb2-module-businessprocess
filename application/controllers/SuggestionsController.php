@@ -11,6 +11,10 @@ use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\HostNode;
 use Icinga\Module\Businessprocess\IcingaDbObject;
+use Icinga\Module\Businessprocess\Kubernetes\Feature as KubernetesFeature;
+use Icinga\Module\Businessprocess\Kubernetes\Kind as KubernetesKind;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName as KubernetesNodeName;
+use Icinga\Module\Businessprocess\Kubernetes\ObjectRepository as KubernetesObjectRepository;
 use Icinga\Module\Businessprocess\ImportedNode;
 use Icinga\Module\Businessprocess\Monitoring\DataView\HostStatus;
 use Icinga\Module\Businessprocess\Monitoring\DataView\ServiceStatus;
@@ -24,6 +28,33 @@ use ipl\Web\FormElement\TermInput\TermSuggestions;
 
 class SuggestionsController extends Controller
 {
+    public function kubernetesObjectAction()
+    {
+        $kind = KubernetesKind::canonicalize($this->params->get('kind', 'namespace'));
+        $suggestions = new TermSuggestions((function () use ($kind, &$suggestions) {
+            if (! KubernetesFeature::isAvailable() || ! KubernetesKind::isSupported($kind)) {
+                return;
+            }
+
+            foreach (KubernetesObjectRepository::search($kind, $suggestions->getSearchTerm()) as $object) {
+                $uuid = KubernetesObjectRepository::uuidToString($object->uuid);
+                $label = implode(' / ', KubernetesObjectRepository::labelParts($kind, $object));
+
+                yield [
+                    'search' => KubernetesNodeName::create($kind, $uuid),
+                    'label'  => $label,
+                    'class'  => 'kubernetes ' . $kind,
+                    'kind'   => KubernetesKind::title($kind)
+                ];
+            }
+        })());
+
+        $suggestions->setGroupingCallback(function (array $data) {
+            return $data['kind'];
+        });
+
+        $this->getDocument()->addHtml($suggestions->forRequest($this->getServerRequest()));
+    }
     public function processAction()
     {
         $ignoreList = [];
