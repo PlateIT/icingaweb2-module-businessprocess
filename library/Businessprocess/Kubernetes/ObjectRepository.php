@@ -344,11 +344,19 @@ class ObjectRepository
 
     protected static function columnsFor(string $kind): array
     {
-        return match (Kind::canonicalize($kind)) {
-            'container', 'initcontainer', 'sidecarcontainer' => ['uuid', 'pod_uuid', 'name', 'icinga_state', 'icinga_state_reason'],
-            'namespace', 'configmap', 'secret' => ['uuid', 'cluster_uuid', 'namespace', 'name'],
-            default => ['uuid', 'cluster_uuid', 'namespace', 'name', 'icinga_state', 'icinga_state_reason']
-        };
+        $kind = Kind::canonicalize($kind);
+
+        if (self::isContainerKind($kind)) {
+            return ['uuid', 'pod_uuid', 'name', 'icinga_state', 'icinga_state_reason'];
+        }
+
+        $columns = ['uuid', 'cluster_uuid', 'namespace', 'name'];
+        if (Kind::hasState($kind)) {
+            $columns[] = 'icinga_state';
+            $columns[] = 'icinga_state_reason';
+        }
+
+        return $columns;
     }
 
     protected static function isContainerKind(string $kind): bool

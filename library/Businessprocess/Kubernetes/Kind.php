@@ -75,7 +75,18 @@ class Kind
 
     public static function hasState(string $kind): bool
     {
-        return ! in_array(self::canonicalize($kind), ['namespace', 'configmap', 'secret'], true);
+        return in_array(self::canonicalize($kind), [
+            'deployment',
+            'replicaset',
+            'statefulset',
+            'daemonset',
+            'cronjob',
+            'job',
+            'pod',
+            'container',
+            'initcontainer',
+            'sidecarcontainer'
+        ], true);
     }
 
     public static function hasDependencies(string $kind): bool
