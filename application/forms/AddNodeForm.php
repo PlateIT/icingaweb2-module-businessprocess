@@ -119,13 +119,11 @@ class AddNodeForm extends CompatForm
                     'new-process' => $this->translate('New Process')
                 ];
             } else {
-                $nodeTypes = [
-                    'new-process' => $this->translate('New Process')
-                ];
+                $nodeTypes = [];
             }
         }
 
-        if (KubernetesFeature::isEnabled() && KubernetesObjectRepository::canAccessAny()) {
+        if ($this->parent !== null && KubernetesFeature::isEnabled() && KubernetesObjectRepository::canAccessAny()) {
             $nodeTypes['kubernetes'] = $this->translate('Kubernetes Object');
         }
 
@@ -417,12 +415,26 @@ class AddNodeForm extends CompatForm
                 $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
             }
 
-            $this->addElement('multiCheckbox', 'namespaceInclude', [
-                'label' => $this->translate('Namespace object types'),
-                'multiOptions' => $options,
-                'value' => KubernetesKind::DEFAULT_NAMESPACE_INCLUDE
-            ]);
+
+            foreach ($options as $option => $label) {
+                $this->addElement('checkbox', 'namespaceInclude_' . $option, [
+                    'label' => $label,
+                    'value' => in_array($option, KubernetesKind::DEFAULT_NAMESPACE_INCLUDE, true) ? '1' : '0'
+                ]);
+            }
         }
+    }
+
+    protected function getNamespaceIncludeValues(): array
+    {
+        $include = [];
+        foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+            if ((bool) $this->getValue('namespaceInclude_' . $option)) {
+                $include[] = $option;
+            }
+        }
+
+        return $include ?: KubernetesKind::DEFAULT_NAMESPACE_INCLUDE;
     }
     protected function createChildrenElementForObjects(string $label, string $suggestionsPath): TermInput
     {
@@ -490,7 +502,7 @@ class AddNodeForm extends CompatForm
                         'kind' => $kubernetesNode[0],
                         'uuid' => $kubernetesNode[1],
                         'expandDependencies' => (bool) $this->getValue('expandDependencies'),
-                        'namespaceInclude' => (array) ($this->getValue('namespaceInclude') ?: KubernetesKind::DEFAULT_NAMESPACE_INCLUDE),
+                        'namespaceInclude' => $this->getNamespaceIncludeValues(),
                     ];
                     if ($this->parent !== null) {
                         $properties['parentName'] = $this->parent->getName();

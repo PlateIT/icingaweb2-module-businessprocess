@@ -109,12 +109,26 @@ class ProcessForm extends BpConfigBaseForm
                 $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
             }
 
-            $this->addElement('multiCheckbox', 'namespaceInclude', [
-                'label' => $this->translate('Namespace object types'),
-                'multiOptions' => $options,
-                'value' => $node->getNamespaceInclude()
-            ]);
+
+            foreach ($options as $option => $label) {
+                $this->addElement('checkbox', 'namespaceInclude_' . $option, [
+                    'label' => $label,
+                    'value' => in_array($option, $node->getNamespaceInclude(), true) ? '1' : '0'
+                ]);
+            }
         }
+    }
+
+    protected function getNamespaceIncludeValues(): array
+    {
+        $include = [];
+        foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+            if ((bool) $this->getValue('namespaceInclude_' . $option)) {
+                $include[] = $option;
+            }
+        }
+
+        return $include;
     }
     /**
      * @param BpNode $node
@@ -164,7 +178,7 @@ class ProcessForm extends BpConfigBaseForm
                 }
 
                 if ($node->getKind() === 'namespace') {
-                    $namespaceInclude = (array) ($this->getValue('namespaceInclude') ?: []);
+                    $namespaceInclude = $this->getNamespaceIncludeValues();
                     if ($namespaceInclude !== $node->getNamespaceInclude()) {
                         $modifications['namespaceInclude'] = $namespaceInclude;
                     }
