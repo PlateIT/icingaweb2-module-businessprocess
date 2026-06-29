@@ -692,7 +692,7 @@ class BpConfig
         }
 
         if ($kubernetesNode = NodeName::parse($name)) {
-            return $this->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1]);
+            return $this->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1], false);
         }
 
         // Fallback: if it is a service, create an empty one:

@@ -267,7 +267,7 @@ class ProcessController extends Controller
 
         $canEdit =  $bp->getMetadata()->canModify();
 
-        if ($action === 'add' && $canEdit && ! $this->isImplicitKubernetesNode($node)) {
+        if ($action === 'add' && $canEdit && ! $this->isKubernetesNode($node)) {
             $form = (new AddNodeForm())
                 ->setProcess($bp)
                 ->setParentNode($node)
@@ -352,6 +352,11 @@ class ProcessController extends Controller
         if ($form) {
             $this->content()->prepend(HtmlString::create((string) $form));
         }
+    }
+
+    protected function isKubernetesNode(?Node $node): bool
+    {
+        return $node instanceof KubernetesNode;
     }
 
     protected function isImplicitKubernetesNode(?Node $node): bool

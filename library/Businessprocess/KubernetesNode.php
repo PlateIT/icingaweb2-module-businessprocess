@@ -167,6 +167,7 @@ class KubernetesNode extends BpNode
     {
         return $this->getUrl();
     }
+
     public function getDeleteReason(): ?string
     {
         return $this->deleteReason;

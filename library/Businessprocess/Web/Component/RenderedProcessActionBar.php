@@ -21,6 +21,7 @@ class RenderedProcessActionBar extends ActionBar
         $meta = $config->getMetadata();
         $currentNode = $renderer->wantsRootNodes() ? null : $renderer->getParentNode();
         $canModifyCurrentNode = ! ($currentNode instanceof KubernetesNode && ! $currentNode->isExplicit());
+        $canAddToCurrentNode = ! ($currentNode instanceof KubernetesNode);
 
         if ($renderer instanceof TreeRenderer) {
             $link = Html::tag(
@@ -136,7 +137,7 @@ class RenderedProcessActionBar extends ActionBar
             }
         }
 
-        if ($canModifyCurrentNode && ($hasChanges || (! $renderer->isLocked())) && $meta->canModify()) {
+        if ($canAddToCurrentNode && ($hasChanges || (! $renderer->isLocked())) && $meta->canModify()) {
             $this->add(Html::tag(
                 'a',
                 [

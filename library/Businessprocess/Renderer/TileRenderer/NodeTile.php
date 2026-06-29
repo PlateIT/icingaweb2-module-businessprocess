@@ -283,7 +283,8 @@ class NodeTile extends BaseHtmlElement
             ]);
         }
 
-        if ($this->node instanceof KubernetesNode && ! $this->node->isExplicit()) {
+        $isKubernetesNode = $this->node instanceof KubernetesNode;
+        if ($isKubernetesNode && ! $this->node->isExplicit()) {
             return;
         }
 
@@ -331,19 +332,21 @@ class NodeTile extends BaseHtmlElement
                     new Icon('edit')
                 ));
 
-                $addUrl = $baseUrl->with([
-                    'node'      => $this->node->getName(),
-                    'action'    => 'add'
-                ]);
-                $addUrl->getParams()->addValues('path', $this->path);
-                $this->actions()->add(Html::tag(
-                    'a',
-                    [
-                        'href'  => $addUrl,
-                        'title' => mt('businessprocess', 'Add a new sub-node to this business process')
-                    ],
-                    new Icon('plus')
-                ));
+                if (! $isKubernetesNode) {
+                    $addUrl = $baseUrl->with([
+                        'node'      => $this->node->getName(),
+                        'action'    => 'add'
+                    ]);
+                    $addUrl->getParams()->addValues('path', $this->path);
+                    $this->actions()->add(Html::tag(
+                        'a',
+                        [
+                            'href'  => $addUrl,
+                            'title' => mt('businessprocess', 'Add a new sub-node to this business process')
+                        ],
+                        new Icon('plus')
+                    ));
+                }
             }
         }
 
