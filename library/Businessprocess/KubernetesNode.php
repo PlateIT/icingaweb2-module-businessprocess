@@ -122,6 +122,10 @@ class KubernetesNode extends BpNode
         return $this->getAlias();
     }
 
+    public function isEmpty()
+    {
+        return false;
+    }
     public function isExplicit(): bool
     {
         return $this->explicit;
