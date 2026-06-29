@@ -432,13 +432,19 @@ class AddNodeForm extends CompatForm
     {
         $include = [];
         foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
-            if ((bool) $this->getValue('namespaceInclude_' . $option)) {
+            if ($this->isCheckboxChecked('namespaceInclude_' . $option)) {
                 $include[] = $option;
             }
         }
 
-        return $include ?: KubernetesKind::DEFAULT_NAMESPACE_INCLUDE;
+        return $include;
     }
+
+    protected function isCheckboxChecked(string $name): bool
+    {
+        return array_key_exists($name, $this->getRequest()->getPost());
+    }
+
     protected function createChildrenElementForObjects(string $label, string $suggestionsPath): TermInput
     {
         $termValidator = function (array $terms) {
@@ -504,7 +510,7 @@ class AddNodeForm extends CompatForm
                     $properties = [
                         'kind' => $kubernetesNode[0],
                         'uuid' => $kubernetesNode[1],
-                        'expandDependencies' => (bool) $this->getValue('expandDependencies'),
+                        'expandDependencies' => $this->isCheckboxChecked('expandDependencies'),
                         'namespaceInclude' => $this->getNamespaceIncludeValues(),
                     ];
                     if ($this->parent !== null) {
