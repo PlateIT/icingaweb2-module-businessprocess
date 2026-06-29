@@ -35,6 +35,7 @@ class DependencyResolver
         ));
 
         $seen = [];
+        $changed = false;
         while ($node = array_shift($queue)) {
             /** @var KubernetesNode $node */
             if (isset($seen[$node->getName()])) {
@@ -51,11 +52,20 @@ class DependencyResolver
                 if (! $node->hasChild($child->getName())) {
                     try {
                         $node->addChild($child);
+                        $changed = true;
                     } catch (ConfigurationError $_) {
                         // Duplicate children can occur when Kubernetes owner chains race during refresh.
                     }
                 }
                 $queue[] = $child;
+            }
+        }
+
+        if ($changed) {
+            foreach ($this->config->getBpNodes() as $bpNode) {
+                if (! $bpNode instanceof KubernetesNode) {
+                    $bpNode->clearState();
+                }
             }
         }
     }

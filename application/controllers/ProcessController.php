@@ -10,6 +10,7 @@ use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\Forms\AddNodeForm;
 use Icinga\Module\Businessprocess\Forms\EditNodeForm;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Renderer\Breadcrumb;
 use Icinga\Module\Businessprocess\Renderer\Renderer;
@@ -266,7 +267,7 @@ class ProcessController extends Controller
 
         $canEdit =  $bp->getMetadata()->canModify();
 
-        if ($action === 'add' && $canEdit) {
+        if ($action === 'add' && $canEdit && ! $this->isImplicitKubernetesNode($node)) {
             $form = (new AddNodeForm())
                 ->setProcess($bp)
                 ->setParentNode($node)
@@ -304,7 +305,7 @@ class ProcessController extends Controller
                     $this->redirectNow(Url::fromRequest()->without(['action', 'editmonitorednode']));
                 })
                 ->handleRequest($this->getServerRequest());
-        } elseif ($action === 'delete' && $canEdit) {
+        } elseif ($action === 'delete' && $canEdit && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('deletenode')))) {
             $form = $this->loadForm('DeleteNode')
                 ->setSuccessUrl(Url::fromRequest()->without('action'))
                 ->setProcess($bp)
@@ -312,7 +313,7 @@ class ProcessController extends Controller
                 ->setParentNode($node)
                 ->setSession($this->session())
                 ->handleRequest();
-        } elseif ($action === 'edit' && $canEdit) {
+        } elseif ($action === 'edit' && $canEdit && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('editnode')))) {
             $form = $this->loadForm('Process')
                 ->setSuccessUrl(Url::fromRequest()->without('action'))
                 ->setProcess($bp)
@@ -325,7 +326,7 @@ class ProcessController extends Controller
                 ->setNode($bp->getNode($this->params->get('simulationnode')))
                 ->setSimulation(Simulation::fromSession($this->session()))
                 ->handleRequest();
-        } elseif ($action === 'move') {
+        } elseif ($action === 'move' && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('movenode')))) {
             $successUrl = $this->url()->without(['action', 'movenode']);
             if ($this->params->get('mode') === 'tree') {
                 // If the user moves a node from a subtree, the `node` param exists
@@ -351,6 +352,11 @@ class ProcessController extends Controller
         if ($form) {
             $this->content()->prepend(HtmlString::create((string) $form));
         }
+    }
+
+    protected function isImplicitKubernetesNode(?Node $node): bool
+    {
+        return $node instanceof KubernetesNode && ! $node->isExplicit();
     }
 
     protected function setDynamicAutorefresh()

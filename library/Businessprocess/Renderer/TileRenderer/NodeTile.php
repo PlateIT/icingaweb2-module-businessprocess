@@ -8,6 +8,7 @@ namespace Icinga\Module\Businessprocess\Renderer\TileRenderer;
 use Icinga\Date\DateFormatter;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\ImportedNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\MonitoredNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Renderer\Renderer;
@@ -76,7 +77,7 @@ class NodeTile extends BaseHtmlElement
         $attributes = $this->getAttributes();
         $attributes->add('class', $renderer->getNodeClasses($node));
         $attributes->add('id', $renderer->getId($node, $this->path));
-        if (! $renderer->isLocked()) {
+        if (! $renderer->isLocked() && ! ($node instanceof KubernetesNode && ! $node->isExplicit())) {
             $attributes->add('data-node-name', $node->getName());
         }
 
@@ -280,6 +281,10 @@ class NodeTile extends BaseHtmlElement
                 'config'    => $this->node->getBpConfig()->getName(),
                 'unlocked'  => true
             ]);
+        }
+
+        if ($this->node instanceof KubernetesNode && ! $this->node->isExplicit()) {
+            return;
         }
 
         if ($this->node instanceof MonitoredNode) {

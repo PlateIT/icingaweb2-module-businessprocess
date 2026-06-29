@@ -71,12 +71,16 @@ class ProcessForm extends BpConfigBaseForm
             )
         ));
 
-        $this->addElement('text', 'url', array(
+        $urlElementOptions = array(
             'label'        => $this->translate('Info URL'),
             'description' => $this->translate(
                 'URL pointing to more information about this node'
             )
-        ));
+        );
+        if ($this->node instanceof KubernetesNode) {
+            $urlElementOptions['readonly'] = true;
+        }
+        $this->addElement('text', 'url', $urlElementOptions);
 
         if ($this->node instanceof KubernetesNode) {
             $this->addKubernetesElements($this->node);
@@ -164,7 +168,7 @@ class ProcessForm extends BpConfigBaseForm
             if ($operator !== $node->getOperator()) {
                 $modifications['operator'] = $operator;
             }
-            if ($url !== $node->getInfoUrl()) {
+            if (! ($node instanceof KubernetesNode) && $url !== $node->getInfoUrl()) {
                 $modifications['infoUrl'] = $url;
             }
             $currentAlias = $node instanceof KubernetesNode ? $node->getStoredAlias() : $node->getAlias();
