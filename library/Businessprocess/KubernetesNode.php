@@ -189,11 +189,15 @@ class KubernetesNode extends BpNode
 
     public function getState()
     {
-        if (Kind::hasState($this->kind) || in_array($this->kind, ['configmap', 'secret'], true)) {
+        if (Kind::hasState($this->kind)) {
             return $this->state ?? self::ICINGA_UNKNOWN;
         }
 
-        return parent::getState();
+        if ($this->hasChildren()) {
+            return parent::getState();
+        }
+
+        return $this->state ?? self::ICINGA_OK;
     }
 
     public function getLink()
