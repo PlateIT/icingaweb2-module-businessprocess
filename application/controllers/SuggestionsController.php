@@ -43,7 +43,7 @@ class SuggestionsController extends Controller
                 yield [
                     'search' => KubernetesNodeName::create($kind, $uuid),
                     'label'  => $label,
-                    'class'  => 'kubernetes ' . $kind,
+                    'class'  => 'kubernetes-' . $kind,
                     'kind'   => KubernetesKind::title($kind)
                 ];
             }

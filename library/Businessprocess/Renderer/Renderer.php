@@ -10,6 +10,7 @@ use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Common\Sort;
 use Icinga\Module\Businessprocess\ImportedNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\MonitoredNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Web\Url;
@@ -238,7 +239,7 @@ abstract class Renderer extends HtmlDocument
         if ($node->isMissing()) {
             $classes = array('missing');
         } else {
-            if ($node->isEmpty() && ! $node instanceof MonitoredNode) {
+            if ($node->isEmpty() && ! $node instanceof MonitoredNode && ! $node instanceof KubernetesNode) {
                 $classes = array('empty');
             } else {
                 $classes = [strtolower($node->getStateName(
