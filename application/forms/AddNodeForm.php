@@ -440,7 +440,7 @@ class AddNodeForm extends CompatForm
     {
         $include = [];
         foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
-            if ((bool) $this->getValue('namespaceInclude_' . $option)) {
+            if (array_key_exists('namespaceInclude_' . $option, $this->submittedValues)) {
                 $include[] = $option;
             }
         }
@@ -541,7 +541,7 @@ class AddNodeForm extends CompatForm
                     $properties = [
                         'kind' => $kubernetesNode[0],
                         'uuid' => $kubernetesNode[1],
-                        'expandDependencies' => (bool) $this->getValue('expandDependencies'),
+                        'expandDependencies' => array_key_exists('expandDependencies', $this->submittedValues),
                         'namespaceInclude' => $this->getNamespaceIncludeValues(),
                     ];
                     if ($this->parent !== null) {

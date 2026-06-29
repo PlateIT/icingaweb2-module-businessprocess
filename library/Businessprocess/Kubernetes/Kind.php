@@ -43,12 +43,7 @@ class Kind
         'cronjob',
         'standalone_job',
         'standalone_replicaset',
-        'standalone_pod',
-        'service',
-        'ingress',
-        'persistentvolumeclaim',
-        'configmap',
-        'secret'
+        'standalone_pod'
     ];
 
     public static function canonicalize(string $kind): string
