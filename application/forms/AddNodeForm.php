@@ -45,6 +45,9 @@ class AddNodeForm extends CompatForm
     /** @var SessionNamespace */
     protected $session;
 
+    /** @var array */
+    protected $submittedValues = [];
+
     /**
      * Set the storage to use
      *
@@ -428,6 +431,11 @@ class AddNodeForm extends CompatForm
         }
     }
 
+    protected function beforeValidation($data = array())
+    {
+        $this->submittedValues = $data;
+    }
+
     protected function getNamespaceIncludeValues(): array
     {
         $include = [];
@@ -442,7 +450,25 @@ class AddNodeForm extends CompatForm
 
     protected function isCheckboxChecked(string $name): bool
     {
-        return array_key_exists($name, $this->getRequest()->getPost());
+        return array_key_exists($name, $this->submittedValues);
+    }
+
+    protected function extractSubmittedKubernetesNodeNames($value): array
+    {
+        $nodeNames = [];
+        foreach ((array) $value as $entry) {
+            if (is_array($entry)) {
+                $nodeNames = array_merge($nodeNames, $this->extractSubmittedKubernetesNodeNames($entry));
+                continue;
+            }
+
+            if (is_scalar($entry)) {
+                preg_match_all('~kubernetes:[a-z_]+:[0-9a-f-]{36}~i', (string) $entry, $matches);
+                $nodeNames = array_merge($nodeNames, $matches[0]);
+            }
+        }
+
+        return array_values(array_unique($nodeNames));
     }
 
     protected function createChildrenElementForObjects(string $label, string $suggestionsPath): TermInput
@@ -493,10 +519,20 @@ class AddNodeForm extends CompatForm
             }, $term->getTerms()));
 
             if ($nodeType === 'kubernetes') {
+                if (empty($children)) {
+                    $children = $this->extractSubmittedKubernetesNodeNames($this->submittedValues['children'] ?? []);
+                }
+
+                $hasKubernetesNode = false;
                 foreach ($children as $nodeName) {
                     if (! ($kubernetesNode = KubernetesNodeName::parse($nodeName))) {
-                        continue;
+                        throw new Exception(sprintf(
+                            $this->translate('Invalid Kubernetes object selection: %s'),
+                            $nodeName
+                        ));
                     }
+
+                    $hasKubernetesNode = true;
 
                     if ($this->bp->hasNode($nodeName)) {
                         if ($this->parent !== null) {
@@ -519,6 +555,9 @@ class AddNodeForm extends CompatForm
                         $properties['display'] = 1;
                     }
                     $changes->createNode($nodeName, $properties);
+                }
+                if (! $hasKubernetesNode) {
+                    throw new Exception($this->translate('Please select at least one Kubernetes object'));
                 }
                 unset($changes);
                 return;
