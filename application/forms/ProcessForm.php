@@ -104,7 +104,7 @@ class ProcessForm extends BpConfigBaseForm
     {
         $this->addElement('checkbox', 'expandDependencies', [
             'label' => $this->translate('Expand Kubernetes dependencies'),
-            'value' => $node->getExpandDependencies() ? '1' : '0'
+            'checked' => $node->getExpandDependencies()
         ]);
 
         if ($node->getKind() === 'namespace') {
@@ -117,7 +117,7 @@ class ProcessForm extends BpConfigBaseForm
             foreach ($options as $option => $label) {
                 $this->addElement('checkbox', 'namespaceInclude_' . $option, [
                     'label' => $label,
-                    'value' => in_array($option, $node->getNamespaceInclude(), true) ? '1' : '0'
+                    'checked' => in_array($option, $node->getNamespaceInclude(), true)
                 ]);
             }
         }

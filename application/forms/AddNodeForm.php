@@ -409,7 +409,7 @@ class AddNodeForm extends CompatForm
 
         $this->addElement('checkbox', 'expandDependencies', [
             'label' => $this->translate('Expand Kubernetes dependencies'),
-            'value' => '1'
+            'checked' => true
         ]);
 
         if ($kind === 'namespace') {
@@ -422,7 +422,7 @@ class AddNodeForm extends CompatForm
             foreach ($options as $option => $label) {
                 $this->addElement('checkbox', 'namespaceInclude_' . $option, [
                     'label' => $label,
-                    'value' => in_array($option, KubernetesKind::DEFAULT_NAMESPACE_INCLUDE, true) ? '1' : '0'
+                    'checked' => in_array($option, KubernetesKind::DEFAULT_NAMESPACE_INCLUDE, true)
                 ]);
             }
         }
