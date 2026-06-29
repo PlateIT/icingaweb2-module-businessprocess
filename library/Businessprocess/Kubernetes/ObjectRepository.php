@@ -263,7 +263,7 @@ class ObjectRepository
             $select = (new Select())
                 ->from($ownerTable)
                 ->columns([$foreignKey])
-                ->where(["$foreignKey = ?" => Uuid::fromString($child['uuid'])->getBytes()]);
+                ->where(["encode($foreignKey, 'hex') = ?" => str_replace('-', '', $child['uuid'])]);
             $hasOwner = false;
             foreach (KubernetesDatabase::connection()->select($select) as $_) {
                 $hasOwner = true;
