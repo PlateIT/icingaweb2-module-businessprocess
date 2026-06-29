@@ -43,7 +43,7 @@ class DependencyResolver
             }
             $seen[$node->getName()] = true;
 
-            if (! $node->expandsDependencies() || ! Kind::hasDependencies($node->getKind())) {
+            if (! $node->getExpandDependencies() || ! Kind::hasDependencies($node->getKind())) {
                 continue;
             }
 

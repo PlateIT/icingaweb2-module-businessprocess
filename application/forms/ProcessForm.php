@@ -104,7 +104,7 @@ class ProcessForm extends BpConfigBaseForm
     {
         $this->addElement('checkbox', 'expandDependencies', [
             'label' => $this->translate('Expand Kubernetes dependencies'),
-            'value' => $node->expandsDependencies() ? '1' : '0'
+            'value' => $node->getExpandDependencies() ? '1' : '0'
         ]);
 
         if ($node->getKind() === 'namespace') {
@@ -177,7 +177,7 @@ class ProcessForm extends BpConfigBaseForm
             }
             if ($node instanceof KubernetesNode) {
                 $expandDependencies = (bool) $this->getValue('expandDependencies');
-                if ($expandDependencies !== $node->expandsDependencies()) {
+                if ($expandDependencies !== $node->getExpandDependencies()) {
                     $modifications['expandDependencies'] = $expandDependencies;
                 }
 

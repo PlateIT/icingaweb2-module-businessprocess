@@ -244,7 +244,7 @@ class LegacyConfigRenderer
         }
 
         $options = [
-            'expand_dependencies=' . ($node->expandsDependencies() ? '1' : '0')
+            'expand_dependencies=' . ($node->getExpandDependencies() ? '1' : '0')
         ];
         if ($node->getKind() === 'namespace') {
             $options[] = 'namespace_include=' . implode(',', $node->getNamespaceInclude());

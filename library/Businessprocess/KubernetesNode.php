@@ -126,6 +126,7 @@ class KubernetesNode extends BpNode
     {
         return false;
     }
+
     public function isExplicit(): bool
     {
         return $this->explicit;
@@ -138,7 +139,7 @@ class KubernetesNode extends BpNode
         return $this;
     }
 
-    public function expandsDependencies(): bool
+    public function getExpandDependencies(): bool
     {
         return $this->expandDependencies;
     }
