@@ -467,7 +467,7 @@ class AddNodeForm extends CompatForm
     {
         $changes = ProcessChanges::construct($this->bp, $this->session);
 
-        $nodeType = $this->getValue('node_type');
+        $nodeType = $this->getPopulatedValue('node_type');
         if (! $nodeType || $nodeType === 'new-process') {
             $properties = $this->getValues();
             if (! $properties['alias']) {
