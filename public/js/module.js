@@ -53,7 +53,7 @@
             $container.find('input[name="name"]').each(function () {
                 Bp.prototype.prefillPublicHealthPath({currentTarget: this});
             });
-            $container.find('[name="PublicApi"], [data-public-health-path]')
+            $container.find('[name="PublicApi"], [name="PublicApiAvailability"], [data-public-health-path]')
                 .closest('dd').find('p.description').show();
             this.fixTileLinksOnDashboard($container);
         },

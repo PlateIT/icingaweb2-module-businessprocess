@@ -5,7 +5,6 @@
 
 namespace Icinga\Module\Businessprocess\PublicHealth;
 
-use Icinga\Application\Config;
 use Icinga\Application\Logger;
 use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Web\Controller as IcingaController;
@@ -23,13 +22,7 @@ abstract class Controller extends IcingaController
     {
         $this->_helper->viewRenderer->setNoRender(true);
         $this->_helper->layout()->disableLayout();
-        $configured = getenv('ICINGA_BUSINESSPROCESS_PUBLIC_HEALTH_ENABLED');
-        if ($configured === false || $configured === '') {
-            $configured = (string) Config::module('businessprocess')
-                ->getSection('general')
-                ->get('public_health_enabled', 'no');
-        }
-        $this->enabled = in_array(strtolower($configured), ['1', 'true', 'yes', 'on'], true);
+        $this->enabled = Settings::isEnabled();
         if ($this->enabled) {
             $this->health = new PublicHealthService(ApiStorage::getInstance());
         }

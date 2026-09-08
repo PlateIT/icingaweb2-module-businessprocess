@@ -8,6 +8,7 @@ namespace Icinga\Module\Businessprocess\Forms;
 use Icinga\Authentication\Auth;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
+use Icinga\Module\Businessprocess\PublicHealth\Settings as PublicHealthSettings;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
 use RuntimeException;
 
@@ -86,6 +87,18 @@ class BpConfigForm extends BpConfigBaseForm
                 'no'  => $this->translate('No'),
             )
         ));
+
+        $this->addElement('text', 'PublicApiAvailability', [
+            'label' => $this->translate('Public API availability'),
+            'value' => PublicHealthSettings::isEnabled()
+                ? $this->translate('Available globally')
+                : $this->translate('Disabled globally'),
+            'disabled' => true,
+            'description' => $this->translate(
+                'The deployment must enable the Public Health API before published nodes are reachable.'
+                . ' A disabled global API returns HTTP 404.'
+            )
+        ]);
 
         $this->addElement('select', 'PublicApi', [
             'label' => $this->translate('Public Health API'),
