@@ -16,6 +16,16 @@ class ObjectRepository
         self::$objects = [];
     }
 
+    /** Validate and cache a selector snapshot before attaching any children. */
+    public static function rememberSelection(array $items, string $freshness): array
+    {
+        $objects = array_map(static fn(array $item): object => self::object($item, $freshness), $items);
+        foreach ($objects as $object) {
+            self::$objects[self::cacheKey($object->kind, $object->uuid)] = $object;
+        }
+        return $objects;
+    }
+
     public static function canAccessAny(): bool
     {
         return Feature::isAvailable();

@@ -33,6 +33,16 @@ class KubernetesState
         }
 
         ObjectRepository::beginCalculation();
+        // Materialize selector matches before resolving their dependency trees.
+        foreach ($config->getNodes() as $node) {
+            if ($node instanceof KubernetesSelectorNode) {
+                try {
+                    $node->refreshFromKubernetes();
+                } catch (Throwable $_) {
+                    $node->markUnavailable();
+                }
+            }
+        }
         $fixedAvailable = Feature::isEnabled();
         if ($fixedAvailable) {
             try {
@@ -64,7 +74,7 @@ class KubernetesState
         }
 
         foreach ($config->getNodes() as $node) {
-            if (! ($node instanceof KubernetesNode || $node instanceof KubernetesSelectorNode)) {
+            if (! $node instanceof KubernetesNode) {
                 continue;
             }
 

@@ -8,6 +8,7 @@ namespace Icinga\Module\Businessprocess\Kubernetes;
 use Icinga\Exception\ConfigurationError;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\KubernetesNode;
+use Icinga\Module\Businessprocess\KubernetesSelectorNode;
 
 class DependencyResolver
 {
@@ -79,7 +80,7 @@ class DependencyResolver
 
         if ($changed) {
             foreach ($this->config->getBpNodes() as $bpNode) {
-                if (! $bpNode instanceof KubernetesNode) {
+                if (! ($bpNode instanceof KubernetesNode || $bpNode instanceof KubernetesSelectorNode)) {
                     $bpNode->clearState();
                 }
             }
