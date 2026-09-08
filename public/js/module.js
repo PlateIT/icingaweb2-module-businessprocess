@@ -20,6 +20,13 @@
 
         initialize: function()
         {
+            this.module.on('click', '[data-toggle-health-urls]', function (event) {
+                var button = event.currentTarget;
+                var panel = button.closest('.controls').querySelector('.health-url-panel');
+                panel.hidden = ! panel.hidden;
+                button.setAttribute('aria-expanded', String(! panel.hidden));
+                $(window).trigger('resize');
+            });
             this.module.on('click', '[data-copy-health-url]', this.copyHealthUrl);
             /**
              * Tell Icinga about our event handlers

@@ -15,12 +15,12 @@ use ipl\Html\Html;
 /** Authenticated URL discovery only; this does not enable public access. */
 class HealthUrlPanel extends BaseHtmlElement
 {
-    protected $tag = 'details';
-    protected $defaultAttributes = ['class' => 'health-url-panel'];
+    protected $tag = 'div';
+    protected $defaultAttributes = ['class' => 'health-url-panel', 'hidden' => true];
 
     public function __construct(BpConfig $config)
     {
-        $this->add(Html::tag('summary', null, mt('businessprocess', 'Health URLs')));
+
         $meta = $config->getMetadata();
         $status = ! Settings::isEnabled()
             ? mt('businessprocess', 'Public Health API is globally disabled.')
@@ -28,7 +28,9 @@ class HealthUrlPanel extends BaseHtmlElement
                 ? mt('businessprocess', 'Public Health API is disabled for this configuration.')
                 : mt('businessprocess', 'Only explicitly published process nodes are exposed.'));
         $this->add(Html::tag('p', null, $status));
-        $this->add(Html::tag('p', null, mt('businessprocess', 'Pending changes must be stored before their URLs take effect.')));
+        if ($config->hasBeenChanged()) {
+            $this->add(Html::tag('p', null, mt('businessprocess', 'Store pending changes to apply these URLs.')));
+        }
         $base = 'businessprocess/health/' . PublicHealthService::pathForConfig($config);
         $this->addUrl($config->getTitle(), $base);
         // Materialize parent links before calculating hierarchy-based paths.

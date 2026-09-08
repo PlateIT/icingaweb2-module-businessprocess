@@ -65,6 +65,11 @@ class RenderedProcessActionBar extends ActionBar
             ]
         ));
 
+        $this->add(Html::tag('button', [
+            'type' => 'button', 'class' => 'health-url-toggle',
+            'data-toggle-health-urls' => '1', 'aria-expanded' => 'false'
+        ], [new Icon('link'), mt('businessprocess', 'Health URLs')]));
+
         $hasChanges = $config->hasSimulations() || $config->hasBeenChanged();
 
         if ($renderer->isLocked()) {
