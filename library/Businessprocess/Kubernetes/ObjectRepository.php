@@ -116,7 +116,8 @@ class ObjectRepository
         ?string $cluster = null,
         ?string $group = null,
         ?string $version = null,
-        ?string $cursor = null
+        ?string $cursor = null,
+        ?string $namespace = null
     ): array
     {
         $term = trim($term, " *%\t\n\r\0\x0B");
@@ -125,6 +126,7 @@ class ObjectRepository
             'group' => $group,
             'version' => $version,
             'kind' => $kind,
+            'namespace' => $namespace,
             'namePrefix' => $term,
             'limit' => min(100, max(1, $limit)),
             'cursor' => $cursor
@@ -170,6 +172,28 @@ class ObjectRepository
             }
         }
         return $page;
+    }
+
+    /** Namespaces of matching inventory; does not require Namespace objects. */
+    public static function namespaces(string $cluster, array $type): array
+    {
+        $page = (new ApiClient())->get('resource-namespaces', [
+            'cluster' => $cluster, 'group' => $type['group'],
+            'version' => $type['version'], 'kind' => $type['kind']
+        ]);
+        if (! is_array($page['items'] ?? null) || ! array_is_list($page['items'])
+            || count($page['items']) > 4096
+        ) {
+            throw new \RuntimeException('Invalid Kubernetes namespace inventory');
+        }
+        foreach ($page['items'] as $namespace) {
+            if (! is_string($namespace) || strlen($namespace) > 63
+                || ! preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/D', $namespace)
+            ) {
+                throw new \RuntimeException('Invalid Kubernetes namespace');
+            }
+        }
+        return $page['items'];
     }
 
     /**

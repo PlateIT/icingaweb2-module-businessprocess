@@ -26,6 +26,7 @@ class Metadata
         'Statetype'     => null,
         'ManualOrder'   => null,
         'PublicApi'     => null,
+        'PublicApiPath' => null,
         'PublicApiScope' => null,
         'PublicApiRelations' => null,
         // 'SLAHosts'      => null

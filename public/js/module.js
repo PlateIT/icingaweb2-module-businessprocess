@@ -26,6 +26,10 @@
             this.module.on('rendered', this.onRendered);
 
             this.module.on('focus', 'form input, form textarea, form select', this.formElementFocus);
+            this.module.on('input', 'form input[name="name"]', this.prefillPublicHealthPath);
+            this.module.on('input', '[data-public-health-path]', function (event) {
+                event.currentTarget.dataset.userEdited = '1';
+            });
 
             this.module.on('click', 'li.process summary:not(.collapsible-control)', this.processHeaderClick);
             this.module.on('end', 'ul.sortable', this.rowDropped);
@@ -46,7 +50,24 @@
             this.restoreCollapsedBps(event.target);
             this.highlightFormErrors($container);
             this.hideInactiveFormDescriptions($container);
+            $container.find('input[name="name"]').each(function () {
+                Bp.prototype.prefillPublicHealthPath({currentTarget: this});
+            });
+            $container.find('[name="PublicApi"], [data-public-health-path]')
+                .closest('dd').find('p.description').show();
             this.fixTileLinksOnDashboard($container);
+        },
+
+        prefillPublicHealthPath: function (event) {
+            var source = event.currentTarget;
+            var target = source.form && source.form.querySelector('[data-public-health-path]');
+            if (! target || source.readOnly || target.dataset.userEdited === '1'
+                || (target.value && target.value !== target.dataset.generatedValue)) {
+                return;
+            }
+            var value = source.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            target.value = value;
+            target.dataset.generatedValue = value;
         },
 
         // TODO: Remove once support for Icinga Web 2.10.x is dropped

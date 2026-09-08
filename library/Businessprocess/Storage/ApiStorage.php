@@ -8,6 +8,7 @@ use Icinga\Application\Hook\AuditHook;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Kubernetes\ApiClient;
 use Icinga\Module\Businessprocess\Kubernetes\ApiNotFoundException;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
 
 /**
  * PostgreSQL-backed storage through the central Kubernetes API.
@@ -79,6 +80,19 @@ class ApiStorage extends Storage
         $name = $process->getName();
         $definition = DefinitionCodec::encode($process);
         $this->loadProcessIndex();
+        if ($process->getMetadata()->isPublicApiEnabled()) {
+            foreach ($this->listAllProcessNames() as $otherName) {
+                if ($otherName === $name) {
+                    continue;
+                }
+                $other = $this->loadMetadata($otherName);
+                if ($other->isPublicApiEnabled()
+                    && PublicHealthService::pathForMetadata($other) === PublicHealthService::pathForConfig($process)
+                ) {
+                    throw new \RuntimeException('Public health path is already in use');
+                }
+            }
+        }
         $expectedGeneration = (int) ($this->processIndex[$name]['generation'] ?? 0);
         $stored = $this->client()->put('business-processes/' . rawurlencode($name), [
             'definition' => $definition,

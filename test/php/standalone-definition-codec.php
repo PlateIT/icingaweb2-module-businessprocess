@@ -35,6 +35,7 @@ function check(bool $condition, string $message): void
 $config = new BpConfig('example');
 $metadata = $config->getMetadata();
 $metadata->set('Title', 'Example Service');
+$metadata->set('PublicApiPath', 'example-service');
 $metadata->set('PublicApi', 'yes');
 $metadata->set('PublicApiScope', 'published');
 $metadata->set('PublicApiRelations', 'links');
@@ -183,8 +184,8 @@ check((bool) preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $longSlug), 'Generated p
 
 $config->getMetadata()->set('Title', 'Renamed Example Service');
 check(
-    isset($health->catalog()['components']['renamed-example-service']),
-    'Stored Public Health definitions were cached across calculations'
+    $health->catalog()['components']['example-service']['details']['name'] === 'Renamed Example Service',
+    'Title changes must update public labels without changing the stored URL'
 );
 $config->getMetadata()->set('Title', 'Example Service');
 
@@ -199,3 +200,28 @@ check($liveHealth->catalog()['status'] === StatusMapper::DOWN, 'Health state was
 check($stateLoads === 2, 'Health state loader was not called for every request');
 
 echo "Public health smoke test OK\n";
+
+$newConfig = new BpConfig('NEW_SERVICE');
+$newConfig->getMetadata()->set('Title', 'A different title');
+$newDefinition = DefinitionCodec::encode($newConfig);
+check($newDefinition['metadata']['PublicApiPath'] === 'new-service', 'New path must default to the ID');
+unset($newDefinition['metadata']['PublicApiPath']);
+$legacy = DefinitionCodec::decode('NEW_SERVICE', $newDefinition);
+check(PublicHealthService::pathForConfig($legacy) === 'a-different-title', 'Existing generated URL must be preserved');
+$legacy->getMetadata()->set('Title', 'Renamed');
+check(DefinitionCodec::encode($legacy)['metadata']['PublicApiPath'] === 'a-different-title', 'Existing path must be pinned on save');
+foreach (['Uppercase', '../private', 'two/segments', 'a--b', str_repeat('a', 64)] as $badPath) {
+    check(! PublicHealthService::isValidConfigPath($badPath), 'Invalid path accepted: ' . $badPath);
+}
+$rootNode->setPublicStatus(false)->setAlias('private-parent-name');
+$payload = json_encode($health->catalog(), JSON_THROW_ON_ERROR);
+check(! str_contains($payload, 'private-parent-name'), 'Private ancestor name leaked into public path');
+check($health->node('example-service/database') !== null, 'Public child must remain directly addressable');
+$config->getMetadata()->set('PublicApiScope', 'roots');
+try {
+    DefinitionCodec::encode($config);
+    throw new LogicException('Out-of-scope publication was accepted on export');
+} catch (RuntimeException $expected) {
+    check(! ($expected instanceof LogicException), $expected->getMessage());
+}
+echo "Public path stability and disclosure tests OK\n";

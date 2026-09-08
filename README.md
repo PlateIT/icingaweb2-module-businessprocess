@@ -98,3 +98,5 @@ search, unambiguous labels and fail-closed cross-cluster identity validation:
 ```powershell
 .\test\php\run-kubernetes-inventory-selection.ps1
 ```
+
+Direct Kubernetes object selection also provides an optional namespace choice derived from matching inventory. It does not require collected Namespace objects. Public Health configuration URLs use a stored, editable path prefilled from the process ID; see the Public Health documentation for publication and node-path rules.

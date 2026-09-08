@@ -389,7 +389,24 @@ class AddNodeForm extends CompatForm
         $type = $types[$typeKey];
         $kind = KubernetesKind::canonicalize($type['kind']);
 
-        $termValidator = function (array $terms) use ($type) {
+        $namespaceOptions = ['' => $this->translate('All available namespaces')];
+        foreach (KubernetesObjectRepository::namespaces($cluster, $type) as $namespaceName) {
+            $namespaceOptions[$namespaceName] = $namespaceName;
+        }
+        $this->addElement('select', 'kubernetes_namespace', [
+            'label' => $this->translate('Namespace (optional)'),
+            'multiOptions' => $namespaceOptions,
+            'class' => 'autosubmit',
+            'required' => false,
+            'ignore' => true
+        ]);
+        $namespace = (string) $this->getPopulatedValue('kubernetes_namespace');
+        if (! isset($namespaceOptions[$namespace])) {
+            $namespace = '';
+            $this->getElement('kubernetes_namespace')->setValue('');
+        }
+
+        $termValidator = function (array $terms) use ($type, $namespace) {
             foreach ($terms as $term) {
                 $nodeName = $term->getSearchValue();
                 $kubernetesNode = KubernetesNodeName::parse($nodeName);
@@ -408,6 +425,10 @@ class AddNodeForm extends CompatForm
                 );
                 if ($object === null) {
                     $term->setMessage($this->translate('Kubernetes object does not exist or access has been denied'));
+                    continue;
+                }
+                if ($namespace !== '' && ($object->namespace ?? '') !== $namespace) {
+                    $term->setMessage($this->translate('Select an object from the chosen namespace'));
                     continue;
                 }
 
@@ -430,6 +451,7 @@ class AddNodeForm extends CompatForm
                     'group' => $type['group'],
                     'version' => $type['version'],
                     'cluster' => $cluster,
+                    'namespace' => $namespace,
                     'showCompact' => true,
                     '_disableLayout' => true
                 ]))
@@ -465,7 +487,13 @@ class AddNodeForm extends CompatForm
         $this->addElement('text', 'selector_id', [
             'label' => $this->translate('Stable selector ID'), 'required' => true,
             'description' => $this->translate('Letters, numbers, dot, dash and underscore only'),
-            'validators' => [['Regex', false, ['pattern' => '~^[A-Za-z0-9_.-]+$~']]]
+            'validators' => ['callback' => function ($value, $validator) {
+                if (! is_string($value) || ! preg_match('~^[A-Za-z0-9_.-]+$~D', $value)) {
+                    $validator->addMessage($this->translate('Letters, numbers, dot, dash and underscore only'));
+                    return false;
+                }
+                return true;
+            }]
         ]);
         foreach (['cluster','group','version','kind','namespace','name','labels','ownerUID'] as $field) {
             $this->addElement('text', 'selector_' . $field, [
@@ -473,7 +501,8 @@ class AddNodeForm extends CompatForm
                 'required' => false
             ]);
         }
-        $this->addElement('multiselect', 'selector_states', [
+        $this->addElement('select', 'selector_states', [
+            'multiple' => true,
             'label' => $this->translate('States'),
             'multiOptions' => [
                 'ok' => 'OK',
@@ -634,6 +663,16 @@ class AddNodeForm extends CompatForm
                     }
 
                     $hasKubernetesNode = true;
+
+                    $object = KubernetesObjectRepository::fetch(
+                        $kubernetesNode[0], $kubernetesNode[1],
+                        (string) $this->getPopulatedValue('kubernetes_cluster'),
+                        $type['group'], $type['version']
+                    );
+                    $namespace = (string) $this->getPopulatedValue('kubernetes_namespace');
+                    if ($object === null || ($namespace !== '' && ($object->namespace ?? '') !== $namespace)) {
+                        throw new Exception($this->translate('The selected object does not match the current namespace filter'));
+                    }
 
                     if ($this->bp->hasNode($nodeName)) {
                         if ($this->parent !== null) {

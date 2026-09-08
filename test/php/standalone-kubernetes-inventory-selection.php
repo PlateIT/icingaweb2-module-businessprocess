@@ -82,6 +82,14 @@ namespace {
     ) {
         throw new RuntimeException('Selection request is not bounded and cluster-scoped: ' . json_encode($query));
     }
+    if (ObjectRepository::namespaces('campus', ['group' => 'apps', 'version' => 'v1', 'kind' => 'Deployment']) !== ['payments']) {
+        throw new RuntimeException('Namespace choices must come from scoped inventory');
+    }
+    ObjectRepository::search('Deployment', 'check', 50, 'campus', 'apps', 'v1', null, 'payments');
+    $query = json_decode((string) file_get_contents($queryFile), true, 512, JSON_THROW_ON_ERROR);
+    if (($query['namespace'] ?? null) !== 'payments') {
+        throw new RuntimeException('Namespace filter was not sent to the API');
+    }
     $unavailable = ObjectRepository::search('Deployment', 'check', 50, 'remote-down', 'apps', 'v1');
     $unavailableLabel = implode(
         ' / ',

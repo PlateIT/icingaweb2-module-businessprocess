@@ -14,13 +14,12 @@ außerhalb des Charts in der Modulkonfiguration unter `[general]` die Einstellun
 alle Health-Routen einheitlich mit `404`; Definitionen werden dabei nicht geladen.
 Im Helm-Chart entspricht dies `businessProcess.publicHealth.enabled: true`.
 
-Das Greenfield-Modell besitzt keine manuell vergebenen Public-IDs und keinen
-Legacy-Fallback. Konfigurations- und Komponentenpfade werden automatisch aus
-Anzeigenamen und der Prozesshierarchie normalisiert. Eine Umbenennung ändert
-damit bewusst den URL-Pfad. Die über die API in PostgreSQL gespeicherte
-Definition ist die einzige Runtime-Quelle. Exportierte JSON-Definitionen
-können zusätzlich in Git geprüft und versioniert, müssen für den Betrieb aber
-explizit wieder über die API eingespielt werden.
+Der Konfigurationspfad wird als `PublicApiPath` in der Definition gespeichert.
+Beim Anlegen wird er aus der ID vorbelegt und kann angepasst werden. Änderungen
+am Anzeigenamen ändern diesen gespeicherten Pfad nicht. Bei bestehenden
+Definitionen ohne gespeicherten Pfad wird der bisher aus dem Anzeigenamen
+generierte Pfad beim Laden übernommen und beim nächsten Speichern persistiert.
+Die über die API in PostgreSQL gespeicherte Definition ist die Runtime-Quelle.
 
 ## Endpunkte
 
@@ -108,46 +107,52 @@ Statuswechsel.
 
 ## Veröffentlichung und Pfadbildung
 
-Eine Konfiguration besitzt ausschließlich diese Public-Health-Einstellungen:
+Eine Konfiguration besitzt folgende Einstellungen:
 
 ```text
 PublicApi          no
+PublicApiPath      example-service
 PublicApiScope     roots
 PublicApiRelations none
 ```
 
-Ein veröffentlichbarer `BpNode` besitzt nur `public_status <node>;yes`. Es gibt
-weder `PublicApiId` noch `public_id`. Das Formular zeigt den automatisch
-erzeugten Pfad schreibgeschützt an.
+`PublicApiPath` ist ein einzelnes Segment aus 1 bis 63 Kleinbuchstaben, Ziffern
+und einzelnen Bindestrichen zwischen Wörtern. Es ergibt die URL
+`/businessprocess/health/<PublicApiPath>`. Der Pfad wird im Formular vorbelegt,
+kann bewusst geändert werden und bleibt bei einer Umbenennung des Prozesses
+stabil. Das Ändern des Pfades ändert die URL; es gibt keine automatischen Aliase.
 
-Die Veröffentlichung erfordert zwei Opt-ins:
+Zusätzlich zum globalen Schalter erfordert die Veröffentlichung zwei Opt-ins:
 
 1. `PublicApi = yes` für die Konfiguration.
 2. `public_status = yes` für jeden veröffentlichten Prozessknoten.
 
-`PublicApiScope = roots` erlaubt nur Root-Prozesse; `published` erlaubt auch
-explizit veröffentlichte verschachtelte Prozesse. Infrastruktur-Blätter und
-implizite Kubernetes-Abhängigkeiten sind nicht direkt veröffentlichbar.
+Das Aktivieren einer neuen, leeren Konfiguration veröffentlicht noch keinen
+Knoten. Ein leerer öffentlicher Komponentenbestand ergibt `UNKNOWN`/HTTP 503.
+Allowed Users, Groups und Roles gelten für den angemeldeten Webzugriff und
+schränken die ausdrücklich anonyme Public Health API nicht ein.
 
-Pfade entstehen durch UTF-8-Transliteration, Kleinschreibung und Ersetzung
-nicht alphanumerischer Folgen durch `-`. Der Knotenpfad folgt der kürzesten
-eindeutigen veröffentlichten Prozesshierarchie. Kollisionen lassen sich nicht
-durch IDs übersteuern und machen die Konfiguration ungültig; stattdessen müssen
-die Anzeigenamen eindeutig gewählt werden. Ein einzelnes generiertes Segment
-ist auf 63 Zeichen begrenzt; längere Anzeigenamen erhalten einen stabilen
-Hash-Suffix. Eingehende Pfade müssen exakt dem kanonischen Kleinbuchstaben-
-Format entsprechen und sind insgesamt auf 2048 Zeichen begrenzt.
+`roots` erlaubt nur ausdrücklich veröffentlichte Root-Prozesse; `published`
+erlaubt auch ausdrücklich veröffentlichte verschachtelte Prozessknoten.
+Infrastruktur-Blätter und implizite Kubernetes-Abhängigkeiten sind nicht direkt
+veröffentlichbar. Beim Deaktivieren der API dürfen Relationseinstellungen für
+eine spätere erneute Aktivierung gespeichert bleiben.
 
-Dieselbe Kollision-/Scope-Prüfung läuft im normalen Editor, beim JSON-Import und
-erneut beim anonymen Lesen. Eine ungültige Definition wird nicht teilweise
-veröffentlicht. Definitionen und Zustände werden für jede Berechnung erneut aus
-den autoritativen Quellen gelesen; der PHP-Prozess hält keinen Public-Health-
-Definitionscache.
+Knotenpfade werden aus den Anzeigenamen der veröffentlichten Knoten entlang
+der Prozesshierarchie gebildet. Nicht veröffentlichte Elternnamen werden
+übersprungen und dürfen nicht in öffentlichen Pfaden erscheinen. Knotenpfade
+können sich bei Änderungen veröffentlichter Knotennamen oder ihrer Hierarchie
+weiterhin ändern. Der Konfigurationspfad bleibt davon unabhängig stabil.
+
+Kollisionen zwischen veröffentlichten Konfigurationspfaden werden beim
+Speichern geprüft. Knotenpfad-, Scope- und Einstellungsprüfungen gelten auch
+beim JSON-Import, Export und anonymen Lesen. Ungültige öffentliche Definitionen
+werden nicht teilweise veröffentlicht. Beim anonymen Lesen führen auch
+Konfigurationspfad-Kollisionen zu einer bereinigten Fehlerantwort.
 
 Eine Antwort verarbeitet höchstens 100 veröffentlichte Konfigurationen und je
 Konfiguration höchstens 1000 veröffentlichte Knoten. Der serialisierte Body ist
-auf 4 MiB begrenzt. Eine Überschreitung wird vollständig und ohne Teilantwort als
-technischer Fehler mit `503` behandelt.
+auf 4 MiB begrenzt. Überschreitungen führen zu HTTP 503 ohne Teilantwort.
 
 ## Sicherheitsgrenze
 
@@ -173,8 +178,8 @@ Fehlerdetails erscheinen nur in geschützten Serverlogs, niemals in Antworten.
 
 ## Abnahmekriterien
 
-- Die API ist ohne globalen Opt-in nicht erreichbar; Parser, Renderer und Modelle
-  akzeptieren keine manuellen Public-IDs.
+- Die API ist ohne globalen Opt-in nicht erreichbar; Controller und Datenzugriff
+  laden dabei keine Prozessdefinitionen.
 - Responses enthalten ausschließlich `status`, `components` und erlaubte
   `details`.
 - Nicht veröffentlichte Objekte sind weder direkt noch über Relationen sichtbar.

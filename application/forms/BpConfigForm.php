@@ -91,7 +91,8 @@ class BpConfigForm extends BpConfigBaseForm
             'label' => $this->translate('Public Health API'),
             'required' => true,
             'description' => $this->translate(
-                'Allow explicitly published process nodes to be queried without authentication'
+                'Anonymous access: also enable Publish health status on each process node to expose it.'
+                . ' Allowed users, groups and roles below do not restrict this public API.'
             ),
             'multiOptions' => [
                 'no' => $this->translate('Disabled'),
@@ -101,15 +102,21 @@ class BpConfigForm extends BpConfigBaseForm
 
         $this->addElement('text', 'PublicApiPath', [
             'label' => $this->translate('Public Health Path'),
-            'description' => $this->translate('Generated automatically from the process display name'),
-            'disabled' => true
+            'description' => $this->translate(
+                'URL: /businessprocess/health/<path>. Prefilled from the ID and stored independently of the display name.'
+                . ' Use lowercase letters, numbers and hyphens (maximum 63 characters).'
+                . ' Changing this path changes the public URL.'
+            ),
+            'maxlength' => 63,
+            'placeholder' => 'icinga',
+            'data-public-health-path' => '1'
         ]);
 
         $this->addElement('select', 'PublicApiScope', [
             'label' => $this->translate('Public Node Scope'),
             'required' => true,
             'multiOptions' => [
-                'roots' => $this->translate('Root nodes only'),
+                'roots' => $this->translate('Explicitly published root nodes only'),
                 'published' => $this->translate('All explicitly published process nodes')
             ]
         ]);
@@ -158,7 +165,7 @@ class BpConfigForm extends BpConfigBaseForm
                 }
             }
             $this->getElement('PublicApiPath')->setValue(
-                '/businessprocess/health/' . PublicHealthService::pathForConfig($config)
+                PublicHealthService::pathForConfig($config)
             );
             $this->getElement('name')
                  ->setValue($config->getName())
@@ -259,23 +266,29 @@ class BpConfigForm extends BpConfigBaseForm
     protected function validatePublicApiSettings(string $name): bool
     {
         $enabled = $this->getValue('PublicApi') === 'yes';
-        if (! $enabled && $this->getValue('PublicApiRelations') === 'links') {
-            $this->getElement('PublicApiRelations')->addError(
-                $this->translate('Relations can only be enabled together with the public API')
+        $path = trim((string) $this->getValue('PublicApiPath'));
+        if ($path === '') {
+            $path = $this->bp === null
+                ? PublicHealthService::slug($name)
+                : PublicHealthService::pathForConfig($this->bp);
+        }
+        $this->getElement('PublicApiPath')->setValue($path);
+        if (! PublicHealthService::isValidConfigPath($path)) {
+            $this->getElement('PublicApiPath')->addError(
+                $this->translate('Use 1 to 63 lowercase letters, numbers and single hyphens between words')
             );
             return false;
         }
 
         if ($enabled) {
-            $path = PublicHealthService::slug($this->getValue('Title') ?: $name);
             foreach ($this->storage->listAllProcessNames() as $otherName) {
                 if ($otherName === $name) {
                     continue;
                 }
                 $other = $this->storage->loadMetadata($otherName);
-                if ($other->isPublicApiEnabled() && PublicHealthService::slug($other->getTitle()) === $path) {
-                    $this->getElement('Title')->addError(
-                        $this->translate('This display name generates an already used public health path')
+                if ($other->isPublicApiEnabled() && PublicHealthService::pathForMetadata($other) === $path) {
+                    $this->getElement('PublicApiPath')->addError(
+                        $this->translate('This public health path is already in use')
                     );
                     return false;
                 }

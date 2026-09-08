@@ -39,6 +39,7 @@ class PublicHealthTest extends BaseTestCase
     {
         $config = new BpConfig('service');
         $config->getMetadata()->set('Title', 'Public Service');
+        $config->getMetadata()->set('PublicApiPath', 'public-service');
         $config->getMetadata()->set('PublicApi', 'yes');
         $config->getMetadata()->set('PublicApiScope', 'roots');
         $config->getMetadata()->set('PublicApiRelations', 'links');

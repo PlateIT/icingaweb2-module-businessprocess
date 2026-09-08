@@ -31,13 +31,16 @@ class SuggestionsController extends Controller
         $group = trim((string) $this->params->get('group', ''));
         $version = trim((string) $this->params->get('version', ''));
         $cluster = trim((string) $this->params->get('cluster', ''));
-        $suggestions = new TermSuggestions((function () use ($kind, $apiKind, $group, $version, $cluster, &$suggestions) {
+        $namespace = trim((string) $this->params->get('namespace', ''));
+        $suggestions = new TermSuggestions((function () use ($kind, $apiKind, $group, $version, $cluster, $namespace, &$suggestions) {
             if (! KubernetesFeature::isAvailable()
                 || $apiKind === ''
                 || strlen($apiKind) > 512
                 || strlen($group) > 512
                 || $version === ''
                 || strlen($version) > 512
+                || ($namespace !== '' && (strlen($namespace) > 63
+                    || ! preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/D', $namespace)))
             ) {
                 return;
             }
@@ -48,7 +51,9 @@ class SuggestionsController extends Controller
                 50,
                 $cluster === '' ? null : $cluster,
                 $group,
-                $version
+                $version,
+                null,
+                $namespace === '' ? null : $namespace
             );
             foreach ($page['items'] as $object) {
                 $uuid = KubernetesObjectRepository::uuidToString($object->uuid);

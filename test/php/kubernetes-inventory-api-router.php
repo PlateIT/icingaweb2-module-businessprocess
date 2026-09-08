@@ -63,6 +63,16 @@ if ($path === '/api/v1/resources') {
     ]);
     return;
 }
+if ($path === '/api/v1/resource-namespaces') {
+    if (($query['cluster'] ?? '') !== 'campus' || ($query['kind'] ?? '') !== 'Deployment'
+        || ($query['group'] ?? '') !== 'apps' || ($query['version'] ?? '') !== 'v1') {
+        http_response_code(400);
+        echo json_encode(['error' => 'namespace inventory must be scoped']);
+        return;
+    }
+    echo json_encode(['items' => ['payments'], 'cluster' => 'campus', 'freshness' => 'live']);
+    return;
+}
 if ($path === '/api/v1/resources/batch-get') {
     echo json_encode([[
         'id' => '10000000-0000-4000-8000-000000000000',

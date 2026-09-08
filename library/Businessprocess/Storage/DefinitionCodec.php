@@ -9,6 +9,7 @@ use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\ImportedNode;
 use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\KubernetesSelectorNode;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
 use RuntimeException;
 
 final class DefinitionCodec
@@ -18,6 +19,10 @@ final class DefinitionCodec
 
     public static function encode(BpConfig $config): array
     {
+        if (! $config->getMetadata()->get('PublicApiPath')) {
+            $config->getMetadata()->set('PublicApiPath', PublicHealthService::slug($config->getName()));
+        }
+        PublicHealthService::validateConfiguration($config);
         $nodes = [];
         foreach ($config->getBpNodes() as $node) {
             if ($node instanceof KubernetesNode && ! $node->isExplicit()) {
@@ -90,6 +95,12 @@ final class DefinitionCodec
             $config->addRootNode($root);
         }
 
+        // Preserve the URL of definitions created before stored public paths.
+        // Subsequent edits and exports persist it independently of the title.
+        if (! $config->getMetadata()->get('PublicApiPath')) {
+            $config->getMetadata()->set('PublicApiPath', PublicHealthService::slug($config->getTitle()));
+        }
+        PublicHealthService::validateConfiguration($config);
         return $config;
     }
 

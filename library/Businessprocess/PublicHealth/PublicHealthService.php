@@ -51,7 +51,32 @@ class PublicHealthService
 
     public static function pathForConfig(BpConfig $config): string
     {
-        return self::slug($config->getTitle());
+        return self::pathForMetadata($config->getMetadata());
+    }
+
+    public static function pathForMetadata(Metadata $metadata): string
+    {
+        return $metadata->get('PublicApiPath') ?: self::slug($metadata->getTitle());
+    }
+
+    public static function isValidConfigPath(string $path): bool
+    {
+        return strlen($path) <= 63 && self::isPublicPath($path, false);
+    }
+
+    public static function validateConfiguration(BpConfig $config): void
+    {
+        $metadata = $config->getMetadata();
+        if (! in_array($metadata->get('PublicApi', 'no'), ['yes', 'no'], true)
+            || ! in_array($metadata->getPublicApiScope(), ['roots', 'published'], true)
+            || ! in_array($metadata->getPublicApiRelations(), ['none', 'links'], true)
+            || ! self::isValidConfigPath(self::pathForConfig($config))
+        ) {
+            throw new RuntimeException('Invalid public health configuration');
+        }
+        if ($metadata->isPublicApiEnabled()) {
+            self::assertValidNodePaths($config, $metadata->getPublicApiScope());
+        }
     }
 
     public static function pathForNode(BpConfig $config, BpNode $node): string
@@ -66,6 +91,9 @@ class PublicHealthService
                 $pathNode = $config->getBpNode($name);
                 if (! ($pathNode instanceof BpNode)) {
                     continue 2;
+                }
+                if (! $pathNode->getPublicStatus()) {
+                    continue;
                 }
                 $segments[] = self::slug($pathNode->getAlias() ?: $pathNode->getName());
             }
@@ -209,6 +237,7 @@ class PublicHealthService
             }
 
             $config = $this->storage->loadProcess($name);
+            self::validateConfiguration($config);
             $configPath = self::pathForConfig($config);
             if (isset($configs[$configPath])) {
                 throw new RuntimeException('Duplicate public configuration path');
@@ -243,6 +272,7 @@ class PublicHealthService
     /** @return array<string, BpNode> */
     protected function publishedNodes(BpConfig $config): array
     {
+        self::validateConfiguration($config);
         return self::collectPublishedNodes($config, $config->getMetadata()->getPublicApiScope());
     }
 
