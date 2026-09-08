@@ -130,14 +130,16 @@ der Status `UNKNOWN`/HTTP 503; Prozessdetails und `components` werden trotzdem g
 Die Auswahl der öffentlichen Knotendetails ist davon unabhängig: klassische
 Prozessknoten verwenden `public_status = yes`. Explizit ausgewählte Kubernetes-
 Objekte und dynamische Kubernetes-Auswahlen werden ohne zusätzlichen Schalter
-veröffentlicht. Automatisch entdeckte Abhängigkeiten bleiben privat.
+veröffentlicht. Automatisch entdeckte Kinder folgen dem vorhandenen Schalter
+`Expand Kubernetes dependencies`: Bei aktivierter Auflösung gehören sie im
+Scope `published` samt Eltern-/Kindlinks zur öffentlichen Prozesshierarchie.
 Allowed Users, Groups und Roles gelten für den angemeldeten Webzugriff und
 schränken die ausdrücklich anonyme Public Health API nicht ein.
 
 `roots` erlaubt nur ausdrücklich veröffentlichte Root-Prozesse; `published`
 erlaubt auch ausdrücklich veröffentlichte verschachtelte Prozessknoten.
-Infrastruktur-Blätter und implizite Kubernetes-Abhängigkeiten sind nicht direkt
-veröffentlichbar. Beim Deaktivieren der API dürfen Relationseinstellungen für
+Infrastruktur-Blätter werden nicht als eigene Komponenten veröffentlicht.
+Beim Deaktivieren der API dürfen Relationseinstellungen für
 eine spätere erneute Aktivierung gespeichert bleiben.
 
 Knotenpfade werden aus den Anzeigenamen der veröffentlichten Knoten entlang

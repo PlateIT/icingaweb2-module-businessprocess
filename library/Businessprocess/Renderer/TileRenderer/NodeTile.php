@@ -365,7 +365,7 @@ class NodeTile extends BaseHtmlElement
                 'a',
                 [
                     'href'  => $baseUrl->with($params),
-                    'title' => mt('businessprocess', 'Delete this node')
+                    'title' => mt('businessprocess', 'Remove this node from the business process')
                 ],
                 new Icon('xmark')
             ));

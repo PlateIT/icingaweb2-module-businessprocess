@@ -10,6 +10,7 @@ use Icinga\Date\DateFormatter;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\ImportedNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Web\Form\CsrfToken;
 use ipl\Html\Attributes;
@@ -190,7 +191,7 @@ class TreeRenderer extends Renderer
             'li',
             [
                 'id'                => $htmlId,
-                'class'             => ['bp', 'movable', $node->getObjectClassName()],
+                'class'             => ['bp', ($node instanceof KubernetesNode && ! $node->isExplicit()) ? 'generated' : 'movable', $node->getObjectClassName(), 'process'],
                 'data-node-name'    => $node instanceof ImportedNode
                     ? $node->getNodeName()
                     : $node->getName()
@@ -214,7 +215,7 @@ class TreeRenderer extends Renderer
             $summary->getAttributes()->add('class', 'collapsible-control'); // Helps JS, improves performance a bit
         }
 
-        $summary->addHtml(
+        if ($node->hasChildren()) $summary->addHtml(
             new Icon('caret-down', ['class' => 'collapse-icon']),
             new Icon('caret-right', ['class' => 'expand-icon'])
         );
@@ -223,7 +224,7 @@ class TreeRenderer extends Renderer
 
         $summary->add(Html::tag('span', null, $node->getAlias()));
 
-        if ($node instanceof BpNode) {
+        if ($node instanceof BpNode && (! $node instanceof KubernetesNode || $node->hasChildren())) {
             $summary->add(Html::tag('span', ['class' => 'op'], $node->operatorHtml()));
         }
 
@@ -246,7 +247,7 @@ class TreeRenderer extends Renderer
 
         $ul = Html::tag('ul', [
             'class'                         => ['bp', 'sortable'],
-            'data-sortable-disabled'        => ($this->isLocked() || $differentConfig || $this->appliesCustomSorting())
+            'data-sortable-disabled'        => ($this->isLocked() || $differentConfig || $this->appliesCustomSorting() || $node instanceof KubernetesNode)
                 ? 'true'
                 : 'false',
             'data-sortable-invert-swap'     => 'true',
@@ -312,8 +313,14 @@ class TreeRenderer extends Renderer
     protected function getActionIcons(BpConfig $bp, Node $node)
     {
         if ($node instanceof BpNode) {
-            if ($bp->getMetadata()->canModify()) {
-                return [$this->createEditAction($bp, $node), $this->renderAddNewNode($node)];
+            if ($bp->getMetadata()->canModify() && $node->getName() !== '__unbound__'
+                && ! ($node instanceof KubernetesNode && ! $node->isExplicit())) {
+                $actions = [$this->createEditAction($bp, $node)];
+                if (! $node instanceof KubernetesNode) $actions[] = $this->renderAddNewNode($node);
+                $actions[] = $this->actionIcon('xmark', $this->getUrl()->with([
+                    'action' => 'delete', 'deletenode' => $node->getName()
+                ]), mt('businessprocess', 'Remove this node from the business process'));
+                return $actions;
             } else {
                 return '';
             }
@@ -350,11 +357,13 @@ class TreeRenderer extends Renderer
     protected function createInfoAction(BpNode $node)
     {
         $url = $node->getInfoUrl();
-        return $this->actionIcon(
-            'question',
+        $link = $this->actionIcon(
+            'info',
             $url,
             sprintf('%s: %s', mt('businessprocess', 'More information'), $url)
-        )->addAttributes(['target' => '_blank']);
+        );
+        return $link->addAttributes(preg_match('#^https?://#', $url)
+            ? ['target' => '_blank', 'rel' => 'noopener'] : ['data-base-target' => '_next']);
     }
 
     protected function actionIcon($icon, $url, $title)

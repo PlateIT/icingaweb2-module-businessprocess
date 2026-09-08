@@ -27,7 +27,7 @@ class HealthUrlPanel extends BaseHtmlElement
             ? mt('businessprocess', 'Public Health API is globally disabled.')
             : (! $meta->isPublicApiEnabled()
                 ? mt('businessprocess', 'Public Health API is disabled for this configuration.')
-                : mt('businessprocess', 'Only explicitly published process nodes are exposed.'));
+                : mt('businessprocess', 'Published nodes include expanded Kubernetes dependencies within the selected Public Node Scope.'));
         $this->add(Html::tag('p', null, $status));
         if ($config->hasBeenChanged()) {
             $this->add(Html::tag('p', null, mt('businessprocess', 'Store pending changes to apply these URLs.')));

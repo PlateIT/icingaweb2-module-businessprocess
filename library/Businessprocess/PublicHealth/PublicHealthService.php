@@ -9,6 +9,8 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
+use Icinga\Module\Businessprocess\KubernetesSelectorNode;
 use Icinga\Module\Businessprocess\Metadata;
 use Icinga\Module\Businessprocess\Storage\Storage;
 use RuntimeException;
@@ -20,11 +22,33 @@ class PublicHealthService
     private const MAX_PUBLIC_NODES_PER_CONFIG = 1000;
     public static function isPublishedNode(BpNode $node): bool
     {
-        // Explicit Kubernetes selections are the configured process components.
-        // Discovered dependencies remain private; no extra publication switch.
-        return (get_class($node) === BpNode::class && $node->getPublicStatus())
-            || $node instanceof \Icinga\Module\Businessprocess\KubernetesSelectorNode
-            || ($node instanceof \Icinga\Module\Businessprocess\KubernetesNode && $node->isExplicit());
+        if (get_class($node) === BpNode::class) {
+            return $node->getPublicStatus();
+        }
+        if (! $node instanceof KubernetesNode && ! $node instanceof KubernetesSelectorNode) {
+            return false;
+        }
+        // Follow the same expansion edges as the configured process graph.
+        // Unrelated generated nodes do not become public merely by existing.
+        $pending = [$node];
+        $seen = [];
+        while ($pending !== []) {
+            $current = array_pop($pending);
+            $id = spl_object_id($current);
+            if (isset($seen[$id])) continue;
+            $seen[$id] = true;
+            if ($current instanceof KubernetesSelectorNode
+                || ($current instanceof KubernetesNode && $current->isExplicit())) {
+                return true;
+            }
+            foreach ($current->getParents() as $parent) {
+                if ($parent instanceof KubernetesSelectorNode
+                    || ($parent instanceof KubernetesNode && $parent->getExpandDependencies())) {
+                    $pending[] = $parent;
+                }
+            }
+        }
+        return false;
     }
     protected Storage $storage;
 
@@ -179,12 +203,11 @@ class PublicHealthService
         }
 
         $observedAt = $this->observedAt();
+        $this->applyStates($config);
         $nodes = $this->publishedNodes($config);
         if ($nodePath === null || ! isset($nodes[$nodePath])) {
             return null;
         }
-
-        $this->applyStates($config);
 
         return $this->nodeDto($configPath, $config, $nodes[$nodePath], $nodes, $observedAt);
     }
@@ -208,8 +231,8 @@ class PublicHealthService
 
     protected function configDto(string $configPath, BpConfig $config, string $observedAt): array
     {
-        $nodes = $this->publishedNodes($config);
         $this->applyStates($config);
+        $nodes = $this->publishedNodes($config);
 
         $components = [];
         foreach ($nodes as $nodePath => $node) {

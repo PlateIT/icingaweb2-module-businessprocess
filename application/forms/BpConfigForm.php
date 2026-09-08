@@ -103,7 +103,7 @@ class BpConfigForm extends BpConfigBaseForm
             'label' => $this->translate('Public Health API'),
             'required' => true,
             'description' => $this->translate(
-                'Anonymous access: also enable Publish health status on each process node to expose it.'
+                'Anonymous access: published process nodes and selected Kubernetes objects are exposed. Kubernetes children follow Expand Kubernetes dependencies and Public Node Scope.'
                 . ' Allowed users, groups and roles below do not restrict this public API.'
             ),
             'multiOptions' => [
@@ -129,7 +129,7 @@ class BpConfigForm extends BpConfigBaseForm
             'required' => true,
             'multiOptions' => [
                 'roots' => $this->translate('Explicitly published root nodes only'),
-                'published' => $this->translate('All explicitly published process nodes')
+                'published' => $this->translate('All published nodes including expanded Kubernetes children')
             ]
         ]);
 
