@@ -136,6 +136,9 @@ class NodeTile extends BaseHtmlElement
 
     protected function getMainNodeUrl(Node $node)
     {
+        if ($node instanceof KubernetesNode && ! $node->hasChildren()) {
+            return $node->getUrl();
+        }
         if ($node instanceof BpNode) {
             return $this->makeBpUrl($node);
         } else {
@@ -179,7 +182,7 @@ class NodeTile extends BaseHtmlElement
     {
         $node = $this->node;
         $url = $this->getMainNodeUrl($node);
-        if ($node instanceof MonitoredNode) {
+        if ($node instanceof MonitoredNode || ($node instanceof KubernetesNode && ! $node->hasChildren())) {
             $link = Html::tag(
                 'a',
                 ['href' => $url, 'data-base-target' => '_next'],
@@ -198,6 +201,7 @@ class NodeTile extends BaseHtmlElement
         $url = $this->getMainNodeUrl($node);
 
         if ($node instanceof BpNode) {
+            if (! ($node instanceof KubernetesNode) || $node->hasChildren()) {
             $this->actions()->add(Html::tag(
                 'a',
                 [
@@ -213,6 +217,7 @@ class NodeTile extends BaseHtmlElement
                 ],
                 new Icon('sitemap')
             ));
+            }
             if ($node instanceof ImportedNode) {
                 $bpConfig = $node->getBpConfig();
                 if ($bpConfig->isFaulty() || $bpConfig->hasNode($node->getName())) {
