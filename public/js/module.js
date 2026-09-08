@@ -20,6 +20,7 @@
 
         initialize: function()
         {
+            this.module.on('click', '[data-copy-health-url]', this.copyHealthUrl);
             /**
              * Tell Icinga about our event handlers
              */
@@ -51,12 +52,29 @@
             this.highlightFormErrors($container);
             this.hideInactiveFormDescriptions($container);
             this.setupSelectorAdvanced($container);
+            $container.find('[data-health-url]').each(function () {
+                this.value = new URL(this.value, window.location.href).href;
+            });
             $container.find('input[name="name"]').each(function () {
                 Bp.prototype.prefillPublicHealthPath({currentTarget: this});
             });
             $container.find('[name="PublicApi"], [name="PublicApiAvailability"], [data-public-health-path]')
                 .closest('dd').find('p.description').show();
             this.fixTileLinksOnDashboard($container);
+        },
+
+        copyHealthUrl: function (event) {
+            var button = event.currentTarget;
+            var input = button.parentElement.querySelector('[data-health-url]');
+            input.value = new URL(input.value, window.location.href).href;
+            input.focus();
+            input.select();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value).catch(function () {
+                    input.focus();
+                    input.select();
+                });
+            }
         },
 
         prefillPublicHealthPath: function (event) {

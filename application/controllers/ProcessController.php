@@ -196,6 +196,7 @@ class ProcessController extends Controller
             $controls->add(
                 new RenderedProcessActionBar($bp, $renderer, $this->url())
             );
+            $controls->add(new \Icinga\Module\Businessprocess\Web\Component\HealthUrlPanel($bp));
         }
 
         if (! ($this->showFullscreen || $this->view->compact)) {

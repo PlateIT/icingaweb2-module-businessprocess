@@ -283,6 +283,15 @@ class ObjectRepository
         return $result;
     }
 
+    public static function compactLabelParts(string $kind, object $object): array
+    {
+        return array_values(array_filter([
+            $object->api_kind ?? Kind::title($kind),
+            $object->namespace ?? null,
+            $object->name ?? null
+        ], static fn($part) => $part !== null && $part !== ''));
+    }
+
     public static function labelParts(string $kind, object $object): array
     {
         $gvk = ($object->group === '' ? 'core' : $object->group)

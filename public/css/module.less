@@ -1,6 +1,22 @@
 // SPDX-FileCopyrightText: 2018 Icinga GmbH <https://icinga.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+.health-url-panel {
+    clear: both;
+    margin: 0.5em 0;
+
+    summary { cursor: pointer; }
+    .health-url-entry {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5em;
+        margin: 0.5em 0;
+        strong { flex-basis: 100%; }
+        input { flex: 1 1 20em; min-width: 0; max-width: 100%; }
+    }
+}
+
 a:focus {
     outline: none;
     text-decoration: underline;

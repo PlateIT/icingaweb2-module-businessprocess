@@ -366,7 +366,7 @@ class KubernetesNode extends BpNode
         $this->clusterName = $this->clusterUuid !== null ? ObjectRepository::clusterName($this->clusterUuid) : null;
         $this->namespace = ObjectRepository::namespaceFor($this->kind, $object);
         $this->objectName = $object->name ?? null;
-        $this->setAlias(implode(' / ', ObjectRepository::labelParts($this->kind, $object)));
+        $this->setAlias(implode(' / ', ObjectRepository::compactLabelParts($this->kind, $object)));
 
         if (in_array($object->freshness ?? 'live', ['stale', 'unavailable'], true)) {
             // Dependency-backed workload nodes normally derive their state

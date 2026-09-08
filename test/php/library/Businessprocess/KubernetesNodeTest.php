@@ -36,7 +36,7 @@ class KubernetesNodeTest extends BaseTestCase
 
     public function testBusinessProcessLabelDoesNotContainClusterName(): void
     {
-        $parts = ObjectRepository::labelParts('deployment', (object) [
+        $parts = ObjectRepository::compactLabelParts('deployment', (object) [
             'cluster_uuid' => 'unused',
             'namespace' => 'eiam-portal-admin-01-p',
             'name' => 'rdm-api-application-primary'
