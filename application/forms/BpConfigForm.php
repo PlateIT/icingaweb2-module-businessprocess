@@ -94,10 +94,9 @@ class BpConfigForm extends BpConfigBaseForm
                 ? $this->translate('Available globally')
                 : $this->translate('Disabled globally'),
             'disabled' => true,
-            'description' => $this->translate(
-                'The deployment must enable the Public Health API before published nodes are reachable.'
-                . ' A disabled global API returns HTTP 404.'
-            )
+            'description' => PublicHealthSettings::isEnabled()
+                ? $this->translate('The global API is enabled. Only published process nodes contribute to health; without published nodes the status is UNKNOWN.')
+                : $this->translate('The global API is disabled in the deployment. Enable businessProcess.publicHealth.enabled in the Helm values.')
         ]);
 
         $this->addElement('select', 'PublicApi', [
