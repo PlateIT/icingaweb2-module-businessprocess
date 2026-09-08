@@ -1,6 +1,16 @@
 // SPDX-FileCopyrightText: 2018 Icinga GmbH <https://icinga.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+.selector-preview {
+    margin: .75em 0 1em; padding: .75em; border: 1px solid @gray-light; border-radius: .25em;
+    ul { list-style: none; padding: 0; margin: 0; max-height: 18em; overflow-y: auto; }
+    li { display: flex; align-items: center; gap: .6em; padding: .3em 0; }
+    .selector-preview-state { display: inline-block; width: .75em; height: .75em; flex-shrink: 0; border-radius: 50%; background: #8999a6; }
+    .state-ok { background: #44bb77; }
+    .state-warning { background: #ffaa44; }
+    .state-critical { background: #ff5566; }
+}
+
 .controls .action-bar .health-url-toggle {
     display: inline-flex;
     align-items: center;

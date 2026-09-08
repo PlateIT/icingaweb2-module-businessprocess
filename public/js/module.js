@@ -62,6 +62,7 @@
             this.highlightFormErrors($container);
             this.hideInactiveFormDescriptions($container);
             this.setupSelectorAdvanced($container);
+            this.setupSelectorPreview($container);
             $container.find('.health-url-panel[data-health-config]').each(function () {
                 this.hidden = ! healthPanelStates[this.dataset.healthConfig];
                 var button = this.closest('.controls').querySelector('[data-toggle-health-urls]');
@@ -102,6 +103,57 @@
             var value = source.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
             target.value = value;
             target.dataset.generatedValue = value;
+        },
+
+        setupSelectorPreview: function ($container) {
+            $container.find('[data-selector-preview]').each(function () {
+                var input = this, form = input.form;
+                if (! form || form.querySelector('.selector-preview')) return;
+                var endpoint = new URL(form.action || window.location.href, window.location.href);
+                var moduleAt = endpoint.pathname.indexOf('/businessprocess/');
+                if (moduleAt < 0) return;
+                var basePath = endpoint.pathname.substring(0, moduleAt);
+                endpoint.pathname = basePath + '/businessprocess/selectorpreview';
+                endpoint.search = ''; endpoint.hash = '';
+                var panel = document.createElement('section'); panel.className = 'selector-preview';
+                var title = document.createElement('strong'); title.textContent = 'Matching objects';
+                var status = document.createElement('p'); status.setAttribute('role', 'status');
+                var list = document.createElement('ul');
+                panel.append(title, status, list);
+                (input.closest('dd, .form-element') || input.parentElement).after(panel);
+                var timer, request, generation = 0;
+                function refresh() {
+                    if (! panel.isConnected) return;
+                    var current = generation, url = new URL(endpoint.href);
+                    ['cluster', 'group', 'version', 'kind', 'namespace', 'name', 'labels', 'ownerUID'].forEach(function (key) {
+                        var field = form.querySelector('[name="selector_' + key + '"]');
+                        if (field && field.value.trim()) url.searchParams.set(key, field.value.trim());
+                    });
+                    var states = form.querySelector('select[name="selector_states"], select[name="selector_states[]"]');
+                    if (states) Array.from(states.selectedOptions).forEach(function (option) { url.searchParams.append('states[]', option.value); });
+                    request = new AbortController(); status.textContent = 'Resolving current selection…'; list.replaceChildren();
+                    fetch(url.href, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}, signal: request.signal})
+                        .then(function (response) { if (! response.ok) throw new Error('Preview unavailable. Check filters and permissions.'); return response.json(); })
+                        .then(function (data) {
+                            if (! panel.isConnected || current !== generation) return;
+                            status.textContent = data.more ? 'Showing the first 50 matches.' : data.items.length + ' matching objects';
+                            data.items.forEach(function (item) {
+                                var row = document.createElement('li'), ball = document.createElement('span'), link = document.createElement('a');
+                                var state = ['ok', 'warning', 'critical', 'unknown'].indexOf(item.state) >= 0 ? item.state : 'unknown';
+                                ball.className = 'selector-preview-state state-' + state; ball.title = state.toUpperCase();
+                                link.textContent = [item.kind, item.namespace, item.name].filter(Boolean).join(' / ');
+                                link.href = basePath + '/kubernetes/resources/show?id=' + encodeURIComponent(item.id);
+                                link.setAttribute('data-base-target', '_next'); row.append(ball, link); list.append(row);
+                            });
+                        }).catch(function (error) { if (error.name !== 'AbortError' && panel.isConnected && current === generation) status.textContent = error.message; });
+                }
+                function changed(event) {
+                    if (event && event.target.name.indexOf('selector_') !== 0) return;
+                    ++generation; clearTimeout(timer); if (request) request.abort();
+                    timer = setTimeout(refresh, 300);
+                }
+                form.addEventListener('input', changed); form.addEventListener('change', changed); changed();
+            });
         },
 
         setupSelectorAdvanced: function ($container) {

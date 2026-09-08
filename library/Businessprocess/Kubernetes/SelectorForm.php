@@ -68,6 +68,7 @@ final class SelectorForm
             $fields['selector_' . $key] = ['select', $attributes];
         }
         $fields['selector_labels'] = ['text', [
+            'data-selector-preview' => '1',
             'label' => $translate('Labels (optional)'), 'value' => $values['labels'],
             'placeholder' => 'app=payments,environment=test',
             'description' => $translate('Matching objects are included automatically, including objects created later.')
