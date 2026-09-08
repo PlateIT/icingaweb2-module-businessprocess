@@ -50,6 +50,7 @@
             this.restoreCollapsedBps(event.target);
             this.highlightFormErrors($container);
             this.hideInactiveFormDescriptions($container);
+            this.setupSelectorAdvanced($container);
             $container.find('input[name="name"]').each(function () {
                 Bp.prototype.prefillPublicHealthPath({currentTarget: this});
             });
@@ -68,6 +69,63 @@
             var value = source.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
             target.value = value;
             target.dataset.generatedValue = value;
+        },
+
+        setupSelectorAdvanced: function ($container) {
+            $container.find('form').each(function () {
+                var form = this;
+                var fields = Array.from(form.querySelectorAll('[data-selector-advanced]'));
+                if (! fields.length || form.querySelector('[data-selector-advanced-toggle]')) {
+                    return;
+                }
+                var rows = [];
+                var expanded = false;
+                fields.forEach(function (field) {
+                    var row = field.closest('dd, .control-group');
+                    if (! row) { return; }
+                    var candidates = [row];
+                    if (row.tagName === 'DD' && row.previousElementSibling
+                        && row.previousElementSibling.tagName === 'DT') {
+                        candidates.unshift(row.previousElementSibling);
+                    }
+                    candidates.forEach(function (candidate) {
+                        if (rows.indexOf(candidate) < 0) { rows.push(candidate); }
+                    });
+                    var value = field.multiple
+                        ? Array.from(field.selectedOptions).map(function (option) { return option.value; }).join(',')
+                        : field.value;
+                    if (! field.hasAttribute('data-selector-ignore-value')
+                        && value && value !== (field.getAttribute('data-default-value') || '')) {
+                        expanded = true;
+                    }
+                    if (field.getAttribute('aria-invalid') === 'true' || candidates.some(function (candidate) {
+                        return ['errors', 'error', 'has-error'].some(function (name) { return candidate.classList.contains(name); });
+                    })) {
+                        expanded = true;
+                    }
+                });
+                if (! rows.length) { return; }
+                var holder = document.createElement(rows[0].tagName === 'DT' ? 'dd' : 'div');
+                holder.className = 'control-group';
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = 'Advanced settings';
+                button.setAttribute('data-selector-advanced-toggle', '1');
+                holder.appendChild(button);
+                if (rows[0].tagName === 'DT') {
+                    rows[0].before(document.createElement('dt'));
+                }
+                rows[0].before(holder);
+                function update() {
+                    button.setAttribute('aria-expanded', String(expanded));
+                    rows.forEach(function (row) {
+                        row.hidden = ! expanded;
+                        row.style.display = expanded ? '' : 'none';
+                    });
+                }
+                button.addEventListener('click', function () { expanded = ! expanded; update(); });
+                update();
+            });
         },
 
         // TODO: Remove once support for Icinga Web 2.10.x is dropped

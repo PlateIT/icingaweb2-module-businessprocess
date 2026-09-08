@@ -12,6 +12,9 @@ $form = new class extends AddNodeForm {
     }
 };
 $form->ensureAssembled();
+if (! preg_match('/^[a-f0-9]{24}$/D', $form->getElement('selector_id')->getValue())) {
+    throw new RuntimeException('Selection identity was not generated automatically');
+}
 $validators = $form->getElement('selector_id')->getValidators();
 foreach (['payments', 'app.prod-01_test'] as $valid) {
     if (! $validators->isValid($valid)) {

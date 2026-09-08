@@ -484,39 +484,36 @@ class AddNodeForm extends CompatForm
 
     protected function assembleKubernetesSelectorElements(): void
     {
-        $this->addElement('text', 'selector_id', [
-            'label' => $this->translate('Stable selector ID'), 'required' => true,
-            'description' => $this->translate('Letters, numbers, dot, dash and underscore only'),
+        $this->addElement('hidden', 'selector_id', [
+            'value' => $this->getPopulatedValue('selector_id') ?: bin2hex(random_bytes(12)),
+            'required' => true,
             'validators' => ['callback' => function ($value, $validator) {
-                if (! is_string($value) || ! preg_match('~^[A-Za-z0-9_.-]+$~D', $value)) {
-                    $validator->addMessage($this->translate('Letters, numbers, dot, dash and underscore only'));
+                if (! is_string($value) || ! preg_match('~^[A-Za-z0-9_.-]{1,128}$~D', $value)) {
+                    $validator->addMessage($this->translate('Invalid selection identifier'));
                     return false;
                 }
                 return true;
             }]
         ]);
-        foreach (['cluster','group','version','kind','namespace','name','labels','ownerUID'] as $field) {
-            $this->addElement('text', 'selector_' . $field, [
-                'label' => $this->translate(ucwords(preg_replace('/(?<!^)[A-Z]/', ' $0', $field))),
-                'required' => false
-            ]);
+        $this->addElement('text', 'selector_title', [
+            'label' => $this->translate('Display name (optional)'),
+            'placeholder' => $this->translate('For example: Payment services')
+        ]);
+        $values = [];
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::FILTERS as $field) {
+            $values[$field] = (string) $this->getPopulatedValue('selector_' . $field);
         }
-        $this->addElement('select', 'selector_states', [
-            'multiple' => true,
-            'label' => $this->translate('States'),
-            'multiOptions' => [
-                'ok' => 'OK',
-                'warning' => 'WARNING',
-                'critical' => 'CRITICAL',
-                'unknown' => 'UNKNOWN'
-            ],
-            'description' => $this->translate('Optional; an empty selection matches every state')
-        ]);
-        $this->addElement('select', 'selector_aggregation', [
-            'label' => $this->translate('Aggregation'), 'required' => true,
-            'multiOptions' => ['and' => 'AND', 'or' => 'OR', 'worst' => $this->translate('Worst state')],
-            'value' => 'worst'
-        ]);
+        $values['states'] = (array) $this->getPopulatedValue('selector_states');
+        $values['aggregation'] = $this->getPopulatedValue('selector_aggregation') ?: 'worst';
+        $choices = \Icinga\Module\Businessprocess\Kubernetes\SelectorForm::choices($values);
+        if ($this->getPopulatedValue('selector_cluster') === null) {
+            $values['cluster'] = array_key_first($choices['clusters']) ?? '';
+        }
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::fields(
+            $values, $choices, fn($text) => $this->translate($text), true
+        ) as $name => [$type, $attributes]) {
+            $this->addElement($type, $name, $attributes);
+        }
     }
 
     private static function encodeKubernetesType(array $type): string
@@ -636,6 +633,10 @@ class AddNodeForm extends CompatForm
             if ($states !== []) { $selector['states'] = $states; }
             $nodeName = 'kubernetes-selector:' . $this->getValue('selector_id');
             $properties = ['selector' => $selector, 'aggregation' => $this->getValue('selector_aggregation')];
+            $properties['alias'] = trim((string) $this->getValue('selector_title'))
+                ?: implode(' / ', array_filter([
+                    $selector['kind'] ?? $this->translate('Kubernetes objects'), $selector['namespace'] ?? ''
+                ]));
             if ($this->parent !== null) { $properties['parentName'] = $this->parent->getName(); } else { $properties['display'] = 1; }
             $changes->createNode($nodeName, $properties);
             unset($changes);

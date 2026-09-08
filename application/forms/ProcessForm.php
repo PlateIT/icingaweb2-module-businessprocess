@@ -150,29 +150,25 @@ class ProcessForm extends BpConfigBaseForm
 
     protected function addKubernetesSelectorElements(KubernetesSelectorNode $node): void
     {
-        foreach (['cluster','group','version','kind','namespace','name','labels','ownerUID'] as $field) {
-            $this->addElement('text', 'selector_' . $field, [
-                'label' => $this->translate(ucwords(preg_replace('/(?<!^)[A-Z]/', ' $0', $field))),
-                'required' => false,
-                'value' => $node->getSelector()[$field] ?? ''
-            ]);
+        // Keep the identity and internal operator out of the everyday editor.
+        $this->getElement('name')->setAttrib('data-selector-advanced', '1');
+        $this->getElement('operator')->setAttrib('data-selector-advanced', '1');
+        $this->getElement('url')->setAttrib('data-selector-advanced', '1');
+        foreach (['name', 'operator', 'url'] as $field) {
+            $this->getElement($field)->setAttrib('data-selector-ignore-value', '1');
         }
-        $this->addElement('multiselect', 'selector_states', [
-            'label' => $this->translate('States'),
-            'multiOptions' => [
-                'ok' => 'OK',
-                'warning' => 'WARNING',
-                'critical' => 'CRITICAL',
-                'unknown' => 'UNKNOWN'
-            ],
-            'value' => $node->getSelector()['states'] ?? [],
-            'description' => $this->translate('Optional; an empty selection matches every state')
-        ]);
-        $this->addElement('select', 'selector_aggregation', [
-            'label' => $this->translate('Aggregation'),
-            'multiOptions' => ['and' => 'AND', 'or' => 'OR', 'worst' => $this->translate('Worst state')],
-            'value' => $node->getAggregation()
-        ]);
+        $values = [];
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::FILTERS as $field) {
+            $values[$field] = (string) $this->getSentValue('selector_' . $field, $node->getSelector()[$field] ?? '');
+        }
+        $values['states'] = (array) $this->getSentValue('selector_states', $node->getSelector()['states'] ?? []);
+        $values['aggregation'] = $this->getSentValue('selector_aggregation', $node->getAggregation()) ?: 'worst';
+        $choices = \Icinga\Module\Businessprocess\Kubernetes\SelectorForm::choices($values);
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::fields(
+            $values, $choices, fn($text) => $this->translate($text), false
+        ) as $name => [$type, $attributes]) {
+            $this->addElement($type, $name, $attributes);
+        }
     }
 
     protected function getNamespaceIncludeValues(): array
