@@ -7,7 +7,9 @@ namespace Icinga\Module\Businessprocess\Forms;
 
 use Icinga\Authentication\Auth;
 use Icinga\Module\Businessprocess\BpConfig;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
+use RuntimeException;
 
 class BpConfigForm extends BpConfigBaseForm
 {
@@ -61,19 +63,6 @@ class BpConfigForm extends BpConfigBaseForm
             'rows' => 4,
         ));
 
-        if (! empty($this->listAvailableBackends())) {
-            $this->addElement('select', 'Backend', array(
-                'label'       => $this->translate('Backend'),
-                'description' => $this->translate(
-                    'Icinga Web Monitoring Backend where current object states for'
-                    . ' this process should be retrieved from'
-                ),
-                'multiOptions' => array(
-                        '' => $this->translate('Use the configured default backend'),
-                    ) + $this->listAvailableBackends()
-            ));
-        }
-
         $this->addElement('select', 'Statetype', array(
             'label'       => $this->translate('State Type'),
             'required'    => true,
@@ -97,6 +86,42 @@ class BpConfigForm extends BpConfigBaseForm
                 'no'  => $this->translate('No'),
             )
         ));
+
+        $this->addElement('select', 'PublicApi', [
+            'label' => $this->translate('Public Health API'),
+            'required' => true,
+            'description' => $this->translate(
+                'Allow explicitly published process nodes to be queried without authentication'
+            ),
+            'multiOptions' => [
+                'no' => $this->translate('Disabled'),
+                'yes' => $this->translate('Enabled')
+            ]
+        ]);
+
+        $this->addElement('text', 'PublicApiPath', [
+            'label' => $this->translate('Public Health Path'),
+            'description' => $this->translate('Generated automatically from the process display name'),
+            'disabled' => true
+        ]);
+
+        $this->addElement('select', 'PublicApiScope', [
+            'label' => $this->translate('Public Node Scope'),
+            'required' => true,
+            'multiOptions' => [
+                'roots' => $this->translate('Root nodes only'),
+                'published' => $this->translate('All explicitly published process nodes')
+            ]
+        ]);
+
+        $this->addElement('select', 'PublicApiRelations', [
+            'label' => $this->translate('Public Relations'),
+            'required' => true,
+            'multiOptions' => [
+                'none' => $this->translate('Do not expose relations'),
+                'links' => $this->translate('Link published parents and children')
+            ]
+        ]);
 
         $this->addElement('text', 'AllowedUsers', array(
             'label'       => $this->translate('Allowed Users'),
@@ -132,6 +157,9 @@ class BpConfigForm extends BpConfigBaseForm
                     $el->setValue($v);
                 }
             }
+            $this->getElement('PublicApiPath')->setValue(
+                '/businessprocess/health/' . PublicHealthService::pathForConfig($config)
+            );
             $this->getElement('name')
                  ->setValue($config->getName())
                  ->setAttrib('readonly', true);
@@ -177,6 +205,10 @@ class BpConfigForm extends BpConfigBaseForm
     {
         $name = $this->getValue('name');
 
+        if (! $this->validatePublicApiSettings($name)) {
+            return;
+        }
+
         if ($this->bp === null) {
             if ($this->storage->hasProcess($name)) {
                 $this->addError(sprintf(
@@ -208,7 +240,7 @@ class BpConfigForm extends BpConfigBaseForm
         $meta = $config->getMetadata();
         foreach ($this->getValues() as $key => $value) {
             if (
-                ! in_array($key, ['Title', 'Description', 'Backend'], true)
+                ! in_array($key, ['Title', 'Description'], true)
                 && ($value === null || $value === '')
             ) {
                 continue;
@@ -222,6 +254,49 @@ class BpConfigForm extends BpConfigBaseForm
         $this->storage->storeProcess($config);
         $config->clearAppliedChanges();
         parent::onSuccess();
+    }
+
+    protected function validatePublicApiSettings(string $name): bool
+    {
+        $enabled = $this->getValue('PublicApi') === 'yes';
+        if (! $enabled && $this->getValue('PublicApiRelations') === 'links') {
+            $this->getElement('PublicApiRelations')->addError(
+                $this->translate('Relations can only be enabled together with the public API')
+            );
+            return false;
+        }
+
+        if ($enabled) {
+            $path = PublicHealthService::slug($this->getValue('Title') ?: $name);
+            foreach ($this->storage->listAllProcessNames() as $otherName) {
+                if ($otherName === $name) {
+                    continue;
+                }
+                $other = $this->storage->loadMetadata($otherName);
+                if ($other->isPublicApiEnabled() && PublicHealthService::slug($other->getTitle()) === $path) {
+                    $this->getElement('Title')->addError(
+                        $this->translate('This display name generates an already used public health path')
+                    );
+                    return false;
+                }
+            }
+
+            if ($this->bp !== null) {
+                try {
+                    PublicHealthService::assertValidNodePaths(
+                        $this->bp,
+                        (string) $this->getValue('PublicApiScope')
+                    );
+                } catch (RuntimeException $_) {
+                    $this->getElement('PublicApiScope')->addError(
+                        $this->translate('Published process display names must generate unique valid paths')
+                    );
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     public function hasDeleteButton()

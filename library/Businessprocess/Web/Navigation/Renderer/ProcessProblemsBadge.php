@@ -7,7 +7,7 @@ namespace Icinga\Module\Businessprocess\Web\Navigation\Renderer;
 
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Application\Logger;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Web\Navigation\Renderer\BadgeNavigationItemRenderer;
 use Throwable;
 
@@ -43,7 +43,7 @@ class ProcessProblemsBadge extends BadgeNavigationItemRenderer
             $state = Node::ICINGA_OK;
 
             try {
-                $storage = LegacyStorage::getInstance();
+                $storage = ApiStorage::getInstance();
 
                 // State is not applied here, because it's already done in ProcessesProblemsBadge.
                 // It runs earlier as it is part of the parent menu entry. Do we rely on an implementation detail here?

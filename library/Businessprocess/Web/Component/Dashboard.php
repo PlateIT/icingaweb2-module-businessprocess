@@ -99,8 +99,8 @@ class Dashboard extends BaseHtmlElement
                 $this->add(new BpDashboardTile(
                     new BpConfig(),
                     $title,
-                    sprintf(t('File %s has faulty config'), $name . '.conf'),
-                    'file-circle-xmark',
+                    sprintf(t('Process %s has an invalid definition'), $name),
+                    'triangle-exclamation',
                     'businessprocess/process/show',
                     ['config' => $name]
                 ));

@@ -7,7 +7,7 @@ namespace Icinga\Module\Businessprocess\Web\Navigation\Renderer;
 
 use Icinga\Application\Logger;
 use Icinga\Module\Businessprocess\Node;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Web\Navigation\Renderer\BadgeNavigationItemRenderer;
 use Throwable;
 
@@ -27,7 +27,7 @@ class ProcessesProblemsBadge extends BadgeNavigationItemRenderer
             $state = Node::ICINGA_OK;
 
             try {
-                $storage = LegacyStorage::getInstance();
+                $storage = ApiStorage::getInstance();
 
                 foreach ($storage->listProcessNames() as $processName) {
                     $bp = $storage->loadProcess($processName);

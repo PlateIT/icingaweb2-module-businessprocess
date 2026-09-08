@@ -7,13 +7,13 @@ namespace Tests\Icinga\Module\Businessprocess\Operator;
 
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Test\BaseTestCase;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 class MinOperatorTest extends BaseTestCase
 {
     public function testTheOperatorCanBeParsed()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expressions = array(
             'a = 1 of: b;c',
             'a = 2 of: b;c + c;d + d;e',
@@ -163,7 +163,7 @@ class MinOperatorTest extends BaseTestCase
             $names[] = chr($a + $i) . ';' . chr($a + $i + 1);
         }
 
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expression = sprintf('a = %d of: %s', $min, join(' + ', $names));
         $bp = $storage->loadFromString('dummy', $expression);
         foreach ($names as $n) {

@@ -30,4 +30,3 @@ parameters:
     universalObjectCratesClasses:
         - Icinga\Web\View
         - ipl\Orm\Model
-        - Icinga\Module\Monitoring\Object\MonitoredObject

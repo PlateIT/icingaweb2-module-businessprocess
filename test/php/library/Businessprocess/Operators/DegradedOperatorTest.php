@@ -7,13 +7,13 @@ namespace Tests\Icinga\Module\Businessprocess\Operator;
 
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Test\BaseTestCase;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 class DegradedOperatorTest extends BaseTestCase
 {
     public function testDegradedOperatorCanBeParsed()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expressions = [
             'a = b;c',
             'a = b;c % c;d % d;e',
@@ -150,7 +150,7 @@ class DegradedOperatorTest extends BaseTestCase
      */
     protected function getBp()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expression = 'a = b;c % c;d % d;e';
         $bp = $storage->loadFromString('dummy', $expression);
         $bp->createBp('b');

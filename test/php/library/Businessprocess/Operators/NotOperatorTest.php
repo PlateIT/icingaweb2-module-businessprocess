@@ -7,13 +7,13 @@ namespace Tests\Icinga\Module\Businessprocess\Operator;
 
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Test\BaseTestCase;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 class NotOperatorTest extends BaseTestCase
 {
     public function testNegationOperatorsCanBeParsed()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expressions = array(
             'a = !b;c',
             'a = ! b;c',
@@ -31,7 +31,7 @@ class NotOperatorTest extends BaseTestCase
 
     public function testASimpleNegationGivesTheCorrectResult()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expression = 'a = !b;c';
         $bp = $storage->loadFromString('dummy', $expression);
         $a = $bp->getNode('a');
@@ -145,7 +145,7 @@ class NotOperatorTest extends BaseTestCase
      */
     protected function getBp()
     {
-        $storage = new LegacyStorage($this->emptyConfigSection());
+        $storage = new ApiStorage($this->emptyConfigSection());
         $expression = 'a = ! b;c ! c;d ! d;e';
         $bp = $storage->loadFromString('dummy', $expression);
 

@@ -58,7 +58,7 @@ class DashboardFullscreen extends BaseHtmlElement
                 $this->add(new BpDashboardFullscreenTile(
                     (new BpConfig())->setName($name),
                     $title,
-                    sprintf(mt('businessprocess', 'File %s has faulty config'), $name . '.conf')
+                    sprintf(mt('businessprocess', 'Process %s has an invalid definition'), $name)
                 ));
 
                 continue;

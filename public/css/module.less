@@ -297,8 +297,8 @@ ul.bp {
     }
 }
 
-// ** Node inspect broken files **/
-ul.broken-files {
+// ** Node inspect invalid definitions **/
+ul.invalid-definitions {
     .rounded-corners();
     padding: 1em;
     margin: 1em 0;
@@ -311,7 +311,7 @@ ul.broken-files {
         font-weight: bold;
     }
 }
-// ** END Node inspect broken files **/
+// ** END Node inspect invalid definitions **/
 
 /** BEGIN Dashboard **/
 .overview-dashboard {
@@ -798,7 +798,7 @@ ul.warning {
     background-color: @color-warning;
 }
 
-table.sourcecode {
+table.definition-code {
     font-family: monospace;
     white-space: pre-wrap;
 
@@ -987,31 +987,6 @@ form.bp-form {
 }
 
 /** END of forms **/
-
-/* Form fallback styles, remove once <=2.9.5 support is dropped */
-
-.icinga-controls {
-    input[type="file"] {
-        background-color: @low-sat-blue;
-    }
-
-    button[type="button"] {
-        background-color: @low-sat-blue;
-    }
-}
-
-form.icinga-form {
-    input[type="file"] {
-        flex: 1 1 auto;
-        width: 0;
-    }
-
-    button[type="button"] {
-        line-height: normal;
-    }
-}
-
-/* Form fallback styles end */
 
 /** Custom font styling **/
 textarea.smaller {

@@ -58,10 +58,6 @@ class HostNode extends MonitoredNode
             'host' => $this->getHostname(),
         );
 
-        if ($this->getBpConfig()->hasBackendName()) {
-            $params['backend'] = $this->getBpConfig()->getBackendName();
-        }
-
         return Url::fromPath('businessprocess/host/show', $params);
     }
 }

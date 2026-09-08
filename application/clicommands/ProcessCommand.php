@@ -13,12 +13,12 @@ use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\HostNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\ServiceNode;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 class ProcessCommand extends Command
 {
     /**
-     * @var LegacyStorage
+     * @var ApiStorage
      */
     protected $storage;
 
@@ -39,7 +39,7 @@ class ProcessCommand extends Command
 
     public function init()
     {
-        $this->storage = LegacyStorage::getInstance();
+        $this->storage = ApiStorage::getInstance();
     }
 
     /**

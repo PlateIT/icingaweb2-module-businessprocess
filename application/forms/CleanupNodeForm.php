@@ -8,14 +8,13 @@ namespace Icinga\Module\Businessprocess\Forms;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
-use Icinga\Module\Monitoring\Backend\MonitoringBackend;
 use Icinga\Web\Session\SessionNamespace;
 use ipl\Html\Html;
 use ipl\Sql\Connection as IcingaDbConnection;
 
 class CleanupNodeForm extends BpConfigBaseForm
 {
-    /** @var MonitoringBackend|IcingaDbConnection */
+    /** @var IcingaDbConnection */
     protected $backend;
 
     /** @var BpConfig */

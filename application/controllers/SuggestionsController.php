@@ -6,15 +6,15 @@
 namespace Icinga\Module\Businessprocess\Controllers;
 
 use Exception;
-use Icinga\Data\Filter\Filter as LegacyFilter;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\HostNode;
 use Icinga\Module\Businessprocess\IcingaDbObject;
+use Icinga\Module\Businessprocess\Kubernetes\Feature as KubernetesFeature;
+use Icinga\Module\Businessprocess\Kubernetes\Kind as KubernetesKind;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName as KubernetesNodeName;
+use Icinga\Module\Businessprocess\Kubernetes\ObjectRepository as KubernetesObjectRepository;
 use Icinga\Module\Businessprocess\ImportedNode;
-use Icinga\Module\Businessprocess\Monitoring\DataView\HostStatus;
-use Icinga\Module\Businessprocess\Monitoring\DataView\ServiceStatus;
-use Icinga\Module\Businessprocess\MonitoringRestrictions;
 use Icinga\Module\Businessprocess\ServiceNode;
 use Icinga\Module\Businessprocess\Web\Controller;
 use Icinga\Module\Icingadb\Model\Host;
@@ -24,6 +24,51 @@ use ipl\Web\FormElement\TermInput\TermSuggestions;
 
 class SuggestionsController extends Controller
 {
+    public function kubernetesObjectAction()
+    {
+        $kind = KubernetesKind::canonicalize($this->params->get('kind', 'namespace'));
+        $apiKind = trim((string) $this->params->get('apiKind', $kind));
+        $group = trim((string) $this->params->get('group', ''));
+        $version = trim((string) $this->params->get('version', ''));
+        $cluster = trim((string) $this->params->get('cluster', ''));
+        $suggestions = new TermSuggestions((function () use ($kind, $apiKind, $group, $version, $cluster, &$suggestions) {
+            if (! KubernetesFeature::isAvailable()
+                || $apiKind === ''
+                || strlen($apiKind) > 512
+                || strlen($group) > 512
+                || $version === ''
+                || strlen($version) > 512
+            ) {
+                return;
+            }
+
+            $page = KubernetesObjectRepository::search(
+                $apiKind,
+                $suggestions->getSearchTerm(),
+                50,
+                $cluster === '' ? null : $cluster,
+                $group,
+                $version
+            );
+            foreach ($page['items'] as $object) {
+                $uuid = KubernetesObjectRepository::uuidToString($object->uuid);
+                $label = implode(' / ', KubernetesObjectRepository::labelParts($kind, $object));
+
+                yield [
+                    'search' => KubernetesNodeName::create($kind, $uuid),
+                    'label'  => $label,
+                    'class'  => 'kubernetes-' . $kind,
+                    'kind'   => KubernetesKind::title($kind)
+                ];
+            }
+        })());
+
+        $suggestions->setGroupingCallback(function (array $data) {
+            return $data['kind'];
+        });
+
+        $this->getDocument()->addHtml($suggestions->forRequest($this->getServerRequest()));
+    }
     public function processAction()
     {
         $ignoreList = [];
@@ -36,7 +81,7 @@ class SuggestionsController extends Controller
             if ($parentName) {
                 $forParent = $forConfig->getBpNode($parentName);
 
-                $collectParents = function ($node) use ($ignoreList, &$collectParents) {
+                $collectParents = function ($node) use (&$ignoreList, &$collectParents) {
                     foreach ($node->getParents() as $parent) {
                         $ignoreList[$parent->getName()] = true;
 
@@ -145,7 +190,7 @@ class SuggestionsController extends Controller
                 $excludes->add(Filter::equal('host.name', $hostName));
             }
 
-            $hosts = Host::on($forConfig->getBackend())
+            $hosts = Host::on(IcingaDbObject::fetchDb())
                 ->columns(['host.name', 'host.display_name'])
                 ->limit(50);
             IcingaDbObject::applyIcingaDbRestrictions($hosts);
@@ -211,7 +256,7 @@ class SuggestionsController extends Controller
                 }
             }
 
-            $services = Service::on($forConfig->getBackend())
+            $services = Service::on(IcingaDbObject::fetchDb())
                 ->columns(['host.name', 'host.display_name', 'service.name', 'service.display_name'])
                 ->limit(50);
             IcingaDbObject::applyIcingaDbRestrictions($services);
@@ -248,130 +293,4 @@ class SuggestionsController extends Controller
         $this->getDocument()->addHtml($suggestions->forRequest($this->getServerRequest()));
     }
 
-    public function monitoringHostAction()
-    {
-        $excludes = LegacyFilter::matchAny();
-        $forConfig = null;
-        if ($this->params->has('config')) {
-            $forConfig = $this->loadModifiedBpConfig();
-
-            if ($this->params->has('node')) {
-                $nodeName = $this->params->get('node');
-                $node = $forConfig->getBpNode($nodeName);
-
-                foreach ($node->getChildren() as $child) {
-                    if ($child instanceof HostNode) {
-                        $excludes->addFilter(LegacyFilter::where('host_name', $child->getHostname()));
-                    }
-                }
-            }
-        }
-
-        $suggestions = new TermSuggestions((function () use ($forConfig, $excludes, &$suggestions) {
-            foreach ($suggestions->getExcludeTerms() as $excludeTerm) {
-                [$hostName, $_] = BpConfig::splitNodeName($excludeTerm);
-                $excludes->addFilter(LegacyFilter::where('host_name', $hostName));
-            }
-
-            $hosts = (new HostStatus($forConfig->getBackend()->select(), ['host_name', 'host_display_name']))
-                ->limit(50)
-                ->applyFilter(MonitoringRestrictions::getRestriction('monitoring/filter/objects'))
-                ->applyFilter(LegacyFilter::matchAny(
-                    LegacyFilter::where('host_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('host_display_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('host_address', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('host_address6', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('_host_%', $suggestions->getSearchTerm()),
-                    // This also forces a group by on the query, needed anyway due to the custom var filter
-                    // above, which may return multiple rows because of the wildcard in the name filter.
-                    LegacyFilter::where('hostgroup_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('hostgroup_alias', $suggestions->getSearchTerm())
-                ));
-            if (! $excludes->isEmpty()) {
-                $hosts->applyFilter(LegacyFilter::not($excludes));
-            }
-
-            foreach ($hosts as $row) {
-                yield [
-                    'search' => BpConfig::joinNodeName($row->host_name, 'Hoststatus'),
-                    'label'  => $row->host_display_name,
-                    'class'  => 'host'
-                ];
-            }
-        })());
-
-        $this->getDocument()->addHtml($suggestions->forRequest($this->getServerRequest()));
-    }
-
-    public function monitoringServiceAction()
-    {
-        $excludes = LegacyFilter::matchAny();
-        $forConfig = null;
-        if ($this->params->has('config')) {
-            $forConfig = $this->loadModifiedBpConfig();
-
-            if ($this->params->has('node')) {
-                $nodeName = $this->params->get('node');
-                $node = $forConfig->getBpNode($nodeName);
-
-                foreach ($node->getChildren() as $child) {
-                    if ($child instanceof ServiceNode) {
-                        $excludes->addFilter(LegacyFilter::matchAll(
-                            LegacyFilter::where('host_name', $child->getHostname()),
-                            LegacyFilter::where('service_description', $child->getServiceDescription())
-                        ));
-                    }
-                }
-            }
-        }
-
-        $suggestions = new TermSuggestions((function () use ($forConfig, $excludes, &$suggestions) {
-            foreach ($suggestions->getExcludeTerms() as $excludeTerm) {
-                [$hostName, $serviceName] = BpConfig::splitNodeName($excludeTerm);
-                if ($serviceName !== null && $serviceName !== 'Hoststatus') {
-                    $excludes->addFilter(LegacyFilter::matchAll(
-                        LegacyFilter::where('host_name', $hostName),
-                        LegacyFilter::where('service_description', $serviceName)
-                    ));
-                }
-            }
-
-            $services = (new ServiceStatus($forConfig->getBackend()->select(), [
-                'host_name',
-                'host_display_name',
-                'service_description',
-                'service_display_name'
-            ]))
-                ->limit(50)
-                ->applyFilter(MonitoringRestrictions::getRestriction('monitoring/filter/objects'))
-                ->applyFilter(LegacyFilter::matchAny(
-                    LegacyFilter::where('host_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('host_display_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('service_description', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('service_display_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('_service_%', $suggestions->getSearchTerm()),
-                    // This also forces a group by on the query, needed anyway due to the custom var filter
-                    // above, which may return multiple rows because of the wildcard in the name filter.
-                    LegacyFilter::where('servicegroup_name', $suggestions->getSearchTerm()),
-                    LegacyFilter::where('servicegroup_alias', $suggestions->getSearchTerm())
-                ));
-            if (! $excludes->isEmpty()) {
-                $services->applyFilter(LegacyFilter::not($excludes));
-            }
-
-            foreach ($services as $row) {
-                yield [
-                    'class'  => 'service',
-                    'search' => BpConfig::joinNodeName($row->host_name, $row->service_description),
-                    'label'  => sprintf(
-                        $this->translate('%s on %s', '<service> on <host>'),
-                        $row->service_display_name,
-                        $row->host_display_name
-                    )
-                ];
-            }
-        })());
-
-        $this->getDocument()->addHtml($suggestions->forRequest($this->getServerRequest()));
-    }
 }

@@ -22,4 +22,8 @@ This option allows to limit access of a role to only business processes with a s
 
 ### Access controls
 
-This option allows for more fine granular permissions based on user (`AllowedUsers`), group (`AllowedGroups`) and role (`AllowedRoles`). These attributes take a comma-separated list, get added to the header of the business process configuration file and limit access to the owner and the mentioned ones.
+This option allows more fine-grained permissions based on user
+(`AllowedUsers`), group (`AllowedGroups`) and role (`AllowedRoles`). These
+attributes take comma-separated lists and are stored as metadata in the
+structured process definition. Access is limited to the owner and the named
+subjects.

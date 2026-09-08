@@ -9,12 +9,12 @@ use Exception;
 use Icinga\Application\Logger;
 use Icinga\Cli\Command;
 use Icinga\Module\Businessprocess\Modification\NodeRemoveAction;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 class CleanupCommand extends Command
 {
     /**
-     * @var LegacyStorage
+     * @var ApiStorage
      */
     protected $storage;
 
@@ -22,13 +22,13 @@ class CleanupCommand extends Command
 
     public function init()
     {
-        $this->storage = LegacyStorage::getInstance();
+        $this->storage = ApiStorage::getInstance();
     }
 
     /**
      * Cleanup all missing monitoring nodes from the specified config name
      * If no config name is specified, the missing nodes are cleaned from all available configs.
-     * Invalid config files and file names are ignored
+     * Invalid process definitions and names are ignored
      *
      * USAGE
      *
@@ -51,7 +51,7 @@ class CleanupCommand extends Command
                 $bp = $this->storage->loadProcess($configName);
             } catch (Exception $e) {
                 Logger::error(
-                    'Failed to scan the %s.conf file for missing nodes. Faulty config found.',
+                    'Failed to scan process definition %s for missing nodes. Invalid definition found.',
                     $configName
                 );
 
@@ -75,7 +75,7 @@ class CleanupCommand extends Command
                         $foundMissingNode = true;
                     }
                 } catch (Exception $e) {
-                    Logger::error(sprintf('(%s.conf) %s', $configName, $e->getMessage()));
+                    Logger::error(sprintf('(%s) %s', $configName, $e->getMessage()));
 
                     continue;
                 }
@@ -83,7 +83,7 @@ class CleanupCommand extends Command
 
             if (! empty($removedNodes)) {
                 echo sprintf(
-                    'Removed following %d missing node(s) from %s.conf successfully:',
+                    'Removed following %d missing node(s) from process %s successfully:',
                     count($removedNodes),
                     $configName
                 );

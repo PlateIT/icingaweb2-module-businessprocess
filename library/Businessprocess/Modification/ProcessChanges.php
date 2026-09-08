@@ -149,7 +149,7 @@ class ProcessChanges
     }
 
     /**
-     * Apply manual order on the entire bp configuration file
+     * Apply manual order on the entire business process definition
      *
      * @return  $this
      */

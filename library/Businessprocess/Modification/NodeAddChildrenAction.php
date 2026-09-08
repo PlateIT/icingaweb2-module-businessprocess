@@ -6,6 +6,7 @@
 namespace Icinga\Module\Businessprocess\Modification;
 
 use Icinga\Module\Businessprocess\BpConfig;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName;
 
 class NodeAddChildrenAction extends NodeAction
 {
@@ -43,6 +44,8 @@ class NodeAddChildrenAction extends NodeAction
                     } else {
                         $config->createService($prefix, $suffix);
                     }
+                } elseif ($kubernetesNode = NodeName::parse($name)) {
+                    $config->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1]);
                 } elseif ($name[0] === '@' && strpos($name, ':') !== false) {
                     list($configName, $nodeName) = preg_split('~:\s*~', substr($name, 1), 2);
                     $config->createImportedNode($configName, $nodeName);

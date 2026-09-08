@@ -7,6 +7,7 @@ namespace Icinga\Module\Businessprocess\Web\Component;
 
 use Icinga\Authentication\Auth;
 use Icinga\Module\Businessprocess\BpConfig;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\Renderer\Renderer;
 use Icinga\Module\Businessprocess\Renderer\TreeRenderer;
 use Icinga\Web\Url;
@@ -18,6 +19,9 @@ class RenderedProcessActionBar extends ActionBar
     public function __construct(BpConfig $config, Renderer $renderer, Url $url)
     {
         $meta = $config->getMetadata();
+        $currentNode = $renderer->wantsRootNodes() ? null : $renderer->getParentNode();
+        $canModifyCurrentNode = ! ($currentNode instanceof KubernetesNode && ! $currentNode->isExplicit());
+        $canAddToCurrentNode = ! ($currentNode instanceof KubernetesNode);
 
         if ($renderer instanceof TreeRenderer) {
             $link = Html::tag(
@@ -101,7 +105,7 @@ class RenderedProcessActionBar extends ActionBar
             ));
         }
 
-        if (($hasChanges || ! $renderer->isLocked()) && $meta->canModify()) {
+        if ($canModifyCurrentNode && ($hasChanges || ! $renderer->isLocked()) && $meta->canModify()) {
             if ($renderer->wantsRootNodes()) {
                 $this->add(Html::tag(
                     'a',
@@ -133,7 +137,7 @@ class RenderedProcessActionBar extends ActionBar
             }
         }
 
-        if (($hasChanges || (! $renderer->isLocked())) && $meta->canModify()) {
+        if ($canAddToCurrentNode && ($hasChanges || (! $renderer->isLocked())) && $meta->canModify()) {
             $this->add(Html::tag(
                 'a',
                 [
