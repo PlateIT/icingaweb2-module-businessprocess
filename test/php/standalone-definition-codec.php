@@ -162,6 +162,14 @@ $storage = new class (['example' => $config]) extends Storage {
     public function loadMetadata($name) { return $this->items[$name]->getMetadata(); }
 };
 $health = new PublicHealthService($storage, static function (): void {});
+$rootNode->setPublicStatus(false);
+$child->setPublicStatus(false);
+$privateHealth = $health->config('example-service');
+check($privateHealth['status'] === StatusMapper::DEGRADED, 'Unpublished roots must contribute to overall health');
+check($privateHealth['components'] === [], 'Private node details must remain hidden');
+check($privateHealth['details']['path'] === 'example-service', 'Process details must exist without published nodes');
+$rootNode->setPublicStatus(true);
+$child->setPublicStatus(true);
 $catalog = $health->catalog();
 check($catalog['status'] === StatusMapper::DEGRADED, 'Health aggregate is incorrect');
 check(StatusMapper::httpStatus(StatusMapper::DEGRADED) === 200, 'DEGRADED must stay probe-readable');

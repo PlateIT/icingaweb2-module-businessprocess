@@ -30,7 +30,7 @@ class HealthController extends Controller
             return;
         }
         try {
-            $config = $this->params->getRequired('config');
+            $config = (string) $this->getRequest()->getParam('config', '');
             $payload = $this->health->config($config);
             if ($payload === null) {
                 $this->notFound();
@@ -48,7 +48,7 @@ class HealthController extends Controller
             return;
         }
         try {
-            $path = $this->params->getRequired('path');
+            $path = (string) $this->getRequest()->getParam('path', '');
             $payload = $this->health->node($path);
             if ($payload === null) {
                 $this->notFound();

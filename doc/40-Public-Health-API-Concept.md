@@ -122,13 +122,15 @@ und einzelnen Bindestrichen zwischen Wörtern. Es ergibt die URL
 kann bewusst geändert werden und bleibt bei einer Umbenennung des Prozesses
 stabil. Das Ändern des Pfades ändert die URL; es gibt keine automatischen Aliase.
 
-Zusätzlich zum globalen Schalter erfordert die Veröffentlichung zwei Opt-ins:
+Zusätzlich zum globalen Schalter aktiviert `PublicApi = yes` den Gesamtstatus
+der Konfiguration. Dieser aggregiert alle konfigurierten Root-Knoten unabhängig
+davon, ob deren Details veröffentlicht sind. Ohne auswertbare Root-Knoten bleibt
+der Status `UNKNOWN`/HTTP 503; Prozessdetails und `components` werden trotzdem geliefert.
 
-1. `PublicApi = yes` für die Konfiguration.
-2. `public_status = yes` für jeden veröffentlichten Prozessknoten.
-
-Das Aktivieren einer neuen, leeren Konfiguration veröffentlicht noch keinen
-Knoten. Ein leerer öffentlicher Komponentenbestand ergibt `UNKNOWN`/HTTP 503.
+Die Auswahl der öffentlichen Knotendetails ist davon unabhängig: klassische
+Prozessknoten verwenden `public_status = yes`. Explizit ausgewählte Kubernetes-
+Objekte und dynamische Kubernetes-Auswahlen werden ohne zusätzlichen Schalter
+veröffentlicht. Automatisch entdeckte Abhängigkeiten bleiben privat.
 Allowed Users, Groups und Roles gelten für den angemeldeten Webzugriff und
 schränken die ausdrücklich anonyme Public Health API nicht ein.
 

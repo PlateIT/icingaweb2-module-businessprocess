@@ -222,8 +222,17 @@ class PublicHealthService
             );
         }
 
+        $rootStatuses = [];
+        foreach ($config->getRootNodes() as $root) {
+            try {
+                $rootStatuses[] = StatusMapper::fromState($root->getState());
+            } catch (Throwable $_) {
+                $rootStatuses[] = StatusMapper::UNKNOWN;
+            }
+        }
+
         return [
-            'status' => StatusMapper::aggregate(array_column($components, 'status')),
+            'status' => StatusMapper::aggregate($rootStatuses),
             'components' => $components,
             'details' => [
                 'name' => $config->getTitle(),
