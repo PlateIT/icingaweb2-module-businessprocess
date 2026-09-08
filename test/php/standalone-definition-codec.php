@@ -225,3 +225,14 @@ try {
     check(! ($expected instanceof LogicException), $expected->getMessage());
 }
 echo "Public path stability and disclosure tests OK\n";
+
+$fixedConfig->getMetadata()->set('PublicApi', 'yes');
+$config->getMetadata()->set('PublicApiScope', 'published');
+$fixedConfig->getMetadata()->set('PublicApiPath', 'fixed-kubernetes');
+$storage->storeProcess($fixedConfig);
+$fixedHealth = $health->config('fixed-kubernetes');
+check(count($fixedHealth['components'] ?? []) === 1, 'Explicit Kubernetes selection must contribute to enabled public health');
+$fixed->setExplicit(false);
+check(! PublicHealthService::isPublishedNode($fixed), 'Discovered Kubernetes children must remain private');
+$fixed->setExplicit(true);
+echo "Explicit Kubernetes public health selection OK\n";

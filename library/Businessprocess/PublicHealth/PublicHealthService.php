@@ -18,6 +18,14 @@ class PublicHealthService
 {
     private const MAX_PUBLIC_CONFIGS = 100;
     private const MAX_PUBLIC_NODES_PER_CONFIG = 1000;
+    public static function isPublishedNode(BpNode $node): bool
+    {
+        // Explicit Kubernetes selections are the configured process components.
+        // Discovered dependencies remain private; no extra publication switch.
+        return (get_class($node) === BpNode::class && $node->getPublicStatus())
+            || $node instanceof \Icinga\Module\Businessprocess\KubernetesSelectorNode
+            || ($node instanceof \Icinga\Module\Businessprocess\KubernetesNode && $node->isExplicit());
+    }
     protected Storage $storage;
 
     protected $stateLoader;
@@ -92,7 +100,7 @@ class PublicHealthService
                 if (! ($pathNode instanceof BpNode)) {
                     continue 2;
                 }
-                if (! $pathNode->getPublicStatus()) {
+                if (! self::isPublishedNode($pathNode)) {
                     continue;
                 }
                 $segments[] = self::slug($pathNode->getAlias() ?: $pathNode->getName());
@@ -284,12 +292,12 @@ class PublicHealthService
         // the process graph first so public paths never depend on insertion
         // order in the stored definition.
         foreach ($config->getBpNodes() as $candidate) {
-            if (get_class($candidate) === BpNode::class) {
+            if ($candidate instanceof BpNode) {
                 $candidate->getChildren();
             }
         }
         foreach ($config->getBpNodes() as $node) {
-            if (get_class($node) !== BpNode::class || ! $node->getPublicStatus()) {
+            if (! self::isPublishedNode($node)) {
                 continue;
             }
             if ($scope === 'roots' && ! $config->hasRootNode($node->getName())) {

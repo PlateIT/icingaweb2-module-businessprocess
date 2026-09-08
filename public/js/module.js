@@ -3,6 +3,8 @@
 
 (function(Icinga) {
 
+    var healthPanelStates = Object.create(null);
+
     var Bp = function(module) {
         /**
          * YES, we need Icinga
@@ -24,6 +26,7 @@
                 var button = event.currentTarget;
                 var panel = button.closest('.controls').querySelector('.health-url-panel');
                 panel.hidden = ! panel.hidden;
+                healthPanelStates[panel.dataset.healthConfig] = ! panel.hidden;
                 button.setAttribute('aria-expanded', String(! panel.hidden));
                 $(window).trigger('resize');
             });
@@ -59,6 +62,11 @@
             this.highlightFormErrors($container);
             this.hideInactiveFormDescriptions($container);
             this.setupSelectorAdvanced($container);
+            $container.find('.health-url-panel[data-health-config]').each(function () {
+                this.hidden = ! healthPanelStates[this.dataset.healthConfig];
+                var button = this.closest('.controls').querySelector('[data-toggle-health-urls]');
+                if (button) button.setAttribute('aria-expanded', String(! this.hidden));
+            });
             $container.find('[data-health-url]').each(function () {
                 this.value = new URL(this.value, window.location.href).href;
             });

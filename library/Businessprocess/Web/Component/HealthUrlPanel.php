@@ -20,6 +20,7 @@ class HealthUrlPanel extends BaseHtmlElement
 
     public function __construct(BpConfig $config)
     {
+        $this->addAttributes(['data-health-config' => $config->getName()]);
 
         $meta = $config->getMetadata();
         $status = ! Settings::isEnabled()
@@ -35,13 +36,13 @@ class HealthUrlPanel extends BaseHtmlElement
         $this->addUrl($config->getTitle(), $base);
         // Materialize parent links before calculating hierarchy-based paths.
         foreach ($config->getBpNodes() as $node) {
-            if (get_class($node) === BpNode::class) {
+            if ($node instanceof BpNode) {
                 $node->getChildren();
             }
         }
         $count = 0;
         foreach ($config->getBpNodes() as $node) {
-            if (get_class($node) !== BpNode::class || ! $node->getPublicStatus()
+            if (! PublicHealthService::isPublishedNode($node)
                 || ($meta->getPublicApiScope() === 'roots' && ! $config->hasRootNode($node->getName()))) {
                 continue;
             }
