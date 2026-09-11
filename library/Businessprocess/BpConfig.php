@@ -6,16 +6,14 @@
 namespace Icinga\Module\Businessprocess;
 
 use Exception;
-use Icinga\Application\Modules\Module;
 use Icinga\Exception\IcingaException;
 use Icinga\Exception\NotFoundError;
 use Icinga\Module\Businessprocess\Exception\NestingError;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
-use Icinga\Module\Businessprocess\ProvidedHook\Icingadb\IcingadbSupport;
+use Icinga\Module\Businessprocess\Kubernetes\NodeName;
 use Icinga\Module\Businessprocess\State\IcingaDbState;
-use Icinga\Module\Businessprocess\State\MonitoringState;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
-use Icinga\Module\Monitoring\Backend\MonitoringBackend;
+use Icinga\Module\Businessprocess\State\KubernetesState;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use ipl\Sql\Connection as IcingaDbConnection;
 
 class BpConfig
@@ -25,21 +23,14 @@ class BpConfig
     public const HARD_STATE = 1;
 
     /**
-     * Name of the configured monitoring backend
-     *
-     * @var string
-     */
-    protected $backendName;
-
-    /**
      * Backend to retrieve states from
      *
-     * @var MonitoringBackend|IcingaDbConnection
+     * @var IcingaDbConnection
      */
     protected $backend;
 
     /**
-     * @var LegacyStorage
+     * @var ApiStorage
      */
     protected $storage;
 
@@ -164,14 +155,8 @@ class BpConfig
      */
     public function applyDbStates(): void
     {
-        if (
-            Module::exists('icingadb')
-            && (! $this->hasBackendName() && IcingadbSupport::useIcingaDbAsBackend())
-        ) {
-            IcingaDbState::apply($this);
-        } else {
-            MonitoringState::apply($this);
-        }
+        IcingaDbState::apply($this);
+        KubernetesState::apply($this);
     }
 
     /**
@@ -301,16 +286,6 @@ class BpConfig
         return $this->getMetadata()->has('Title');
     }
 
-    public function getBackendName()
-    {
-        return $this->getMetadata()->get('Backend');
-    }
-
-    public function hasBackendName()
-    {
-        return $this->getMetadata()->has('Backend');
-    }
-
     public function setBackend($backend)
     {
         $this->backend = $backend;
@@ -320,16 +295,7 @@ class BpConfig
     public function getBackend()
     {
         if ($this->backend === null) {
-            if (
-                Module::exists('icingadb')
-                && (! $this->hasBackendName() && IcingadbSupport::useIcingaDbAsBackend())
-            ) {
-                $this->backend = IcingaDbObject::fetchDb();
-            } else {
-                $this->backend = MonitoringBackend::instance(
-                    $this->getBackendName()
-                );
-            }
+            $this->backend = IcingaDbObject::fetchDb();
         }
 
         return $this->backend;
@@ -515,6 +481,26 @@ class BpConfig
         return $node;
     }
 
+    public function createKubernetesNode(string $kind, string $uuid, bool $explicit = true): KubernetesNode
+    {
+        $node = new KubernetesNode((object) [
+            'kind'     => $kind,
+            'uuid'     => $uuid,
+            'explicit' => $explicit
+        ]);
+        $node->setBpConfig($this);
+        $this->nodes[$node->getName()] = $node;
+        return $node;
+    }
+
+    public function createKubernetesSelectorNode(string $name): KubernetesSelectorNode
+    {
+        $node = new KubernetesSelectorNode($name);
+        $node->setBpConfig($this);
+        $this->addNode($name, $node);
+        return $node;
+    }
+
     public function calculateAllStates()
     {
         foreach ($this->getRootNodes() as $node) {
@@ -645,12 +631,12 @@ class BpConfig
     }
 
     /**
-     * @return LegacyStorage
+     * @return ApiStorage
      */
     protected function storage()
     {
         if ($this->storage === null) {
-            $this->storage = LegacyStorage::getInstance();
+            $this->storage = ApiStorage::getInstance();
         }
 
         return $this->storage;
@@ -676,7 +662,12 @@ class BpConfig
             return $this->getImportedConfig($configName)->getNode($nodeName);
         }
 
-        // Fallback: if it is a service, create an empty one:
+        if ($kubernetesNode = NodeName::parse($name)) {
+            return $this->createKubernetesNode($kubernetesNode[0], $kubernetesNode[1], false);
+        }
+
+        // Materialize a referenced monitored node so it can be marked missing
+        // by the authoritative state loader.
         $this->warn(sprintf('The node "%s" doesn\'t exist', $name));
 
         [$name, $suffix] = self::splitNodeName($name);
@@ -727,7 +718,7 @@ class BpConfig
 
         $msg = $this->isFaulty()
             ? sprintf(
-                t('Trying to import node "%s" from faulty config file "%s.conf"'),
+                t('Trying to import node "%s" from invalid process definition "%s"'),
                 self::unescapeName($name),
                 $this->getName()
             )
@@ -771,7 +762,7 @@ class BpConfig
      */
     public function addNode($name, BpNode $node)
     {
-        if (array_key_exists($name, $this->nodes)) {
+        if (array_key_exists($name, $this->nodes) && $this->nodes[$name] !== $node) {
             $this->warn(
                 sprintf(
                     mt('businessprocess', 'Node "%s" has been defined twice'),

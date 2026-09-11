@@ -8,7 +8,7 @@ namespace Icinga\Module\Businessprocess\ProvidedHook\Icingadb;
 use Icinga\Module\Businessprocess\Renderer\TileRenderer;
 use Icinga\Module\Businessprocess\Renderer\TreeRenderer;
 use Icinga\Module\Businessprocess\State\IcingaDbState;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Module\Businessprocess\Web\Url;
 use Icinga\Module\Icingadb\Hook\ServiceDetailExtensionHook;
 use Icinga\Module\Icingadb\Model\Service;
@@ -19,7 +19,7 @@ use ipl\Html\ValidHtml;
 
 class ServiceDetailExtension extends ServiceDetailExtensionHook
 {
-    /** @var ?LegacyStorage */
+    /** @var ?ApiStorage */
     private $storage;
 
     /** @var string */
@@ -39,7 +39,7 @@ class ServiceDetailExtension extends ServiceDetailExtensionHook
         $this->setSection(self::GRAPH_SECTION);
 
         try {
-            $this->storage = LegacyStorage::getInstance();
+            $this->storage = ApiStorage::getInstance();
             $this->commandName = $this->getModule()->getConfig()->get(
                 'DetailviewExtension',
                 'checkcommand_name',

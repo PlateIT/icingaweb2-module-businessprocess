@@ -5,7 +5,7 @@
 
 use Icinga\Application\Config;
 use Icinga\Module\Businessprocess\Forms\GeneralConfigForm;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Module\Businessprocess\Web\Navigation\Renderer\ProcessProblemsBadge;
 
 /** @var \Icinga\Application\Modules\Module $this */
@@ -17,7 +17,7 @@ $section = $this->menuSection(N_('Business Processes'), array(
 ));
 
 try {
-    $storage = LegacyStorage::getInstance();
+    $storage = ApiStorage::getInstance();
     $maxMenuProcesses = Config::module('businessprocess')
         ->getSection('general')
         ->get('max_menu_processes', GeneralConfigForm::MAX_MENU_PROCESSES);
@@ -51,14 +51,13 @@ try {
 } catch (Exception $e) {
     // Well... there is not much we could do here
 }
-
 $this->providePermission(
     'businessprocess/showall',
     $this->translate('Allow to see all available processes, regardless of configured restrictions')
 );
 $this->providePermission(
     'businessprocess/create',
-    $this->translate('Allow to create whole new process configuration (files)')
+    $this->translate('Allow to create new process definitions')
 );
 $this->providePermission(
     'businessprocess/modify',

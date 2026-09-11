@@ -35,17 +35,6 @@ default to the name.
 Provide a short description explaining within 100-150 character what this
 configuration provides. This will be shown on the Dashboard.
 
-### Backend
-
-![Backend](screenshot/03_getting-started/0206_create-new_backend.png)
-
-**Hint:** *Usually this should not be changed*
-
-Icinga Web 2 currently uses only one Monitoring Backend, but in theory you
-could configure multiple ones. They won't be usable in a meaningful way at the
-time of this writing. Still, you might want to use a different backend as a data
-provider for your Business Process.
-
 ### State Type
 
 ![State Type](screenshot/03_getting-started/0207_create-new_state-type.png)

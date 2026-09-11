@@ -10,6 +10,7 @@ use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\Forms\AddNodeForm;
 use Icinga\Module\Businessprocess\Forms\EditNodeForm;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Renderer\Breadcrumb;
 use Icinga\Module\Businessprocess\Renderer\Renderer;
@@ -17,7 +18,7 @@ use Icinga\Module\Businessprocess\Renderer\TileRenderer;
 use Icinga\Module\Businessprocess\Renderer\TreeRenderer;
 use Icinga\Module\Businessprocess\Simulation;
 use Icinga\Module\Businessprocess\Storage\ConfigDiff;
-use Icinga\Module\Businessprocess\Storage\LegacyConfigRenderer;
+use Icinga\Module\Businessprocess\Storage\DefinitionCodec;
 use Icinga\Module\Businessprocess\Web\Component\ActionBar;
 use Icinga\Module\Businessprocess\Web\Component\RenderedProcessActionBar;
 use Icinga\Module\Businessprocess\Web\Component\Tabs;
@@ -71,7 +72,7 @@ class ProcessController extends Controller
     {
         $this->assertPermission('businessprocess/create');
 
-        $title = $this->translate('Upload a Business Process Config file');
+        $title = $this->translate('Import a Business Process definition');
         $this->setTitle($title);
         $this->controls()
             ->add($this->tabsForCreate()->activate('upload'))
@@ -195,6 +196,10 @@ class ProcessController extends Controller
             $controls->add(
                 new RenderedProcessActionBar($bp, $renderer, $this->url())
             );
+            $node = $this->getNode($bp);
+            $controls->add(new \Icinga\Module\Businessprocess\Web\Component\HealthUrlPanel(
+                $bp, $node instanceof \Icinga\Module\Businessprocess\BpNode ? $node : null
+            ));
         }
 
         if (! ($this->showFullscreen || $this->view->compact)) {
@@ -266,7 +271,7 @@ class ProcessController extends Controller
 
         $canEdit =  $bp->getMetadata()->canModify();
 
-        if ($action === 'add' && $canEdit) {
+        if ($action === 'add' && $canEdit && ! $this->isKubernetesNode($node)) {
             $form = (new AddNodeForm())
                 ->setProcess($bp)
                 ->setParentNode($node)
@@ -304,7 +309,7 @@ class ProcessController extends Controller
                     $this->redirectNow(Url::fromRequest()->without(['action', 'editmonitorednode']));
                 })
                 ->handleRequest($this->getServerRequest());
-        } elseif ($action === 'delete' && $canEdit) {
+        } elseif ($action === 'delete' && $canEdit && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('deletenode')))) {
             $form = $this->loadForm('DeleteNode')
                 ->setSuccessUrl(Url::fromRequest()->without('action'))
                 ->setProcess($bp)
@@ -312,7 +317,7 @@ class ProcessController extends Controller
                 ->setParentNode($node)
                 ->setSession($this->session())
                 ->handleRequest();
-        } elseif ($action === 'edit' && $canEdit) {
+        } elseif ($action === 'edit' && $canEdit && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('editnode')))) {
             $form = $this->loadForm('Process')
                 ->setSuccessUrl(Url::fromRequest()->without('action'))
                 ->setProcess($bp)
@@ -325,7 +330,7 @@ class ProcessController extends Controller
                 ->setNode($bp->getNode($this->params->get('simulationnode')))
                 ->setSimulation(Simulation::fromSession($this->session()))
                 ->handleRequest();
-        } elseif ($action === 'move') {
+        } elseif ($action === 'move' && ! $this->isImplicitKubernetesNode($bp->getNode($this->params->get('movenode')))) {
             $successUrl = $this->url()->without(['action', 'movenode']);
             if ($this->params->get('mode') === 'tree') {
                 // If the user moves a node from a subtree, the `node` param exists
@@ -351,6 +356,16 @@ class ProcessController extends Controller
         if ($form) {
             $this->content()->prepend(HtmlString::create((string) $form));
         }
+    }
+
+    protected function isKubernetesNode(?Node $node): bool
+    {
+        return $node instanceof KubernetesNode;
+    }
+
+    protected function isImplicitKubernetesNode(?Node $node): bool
+    {
+        return $node instanceof KubernetesNode && ! $node->isExplicit();
     }
 
     protected function setDynamicAutorefresh()
@@ -528,43 +543,49 @@ class ProcessController extends Controller
     }
 
     /**
-     * Show the source code for a process
+     * Show the structured definition for a process
      */
-    public function sourceAction()
+    public function definitionAction()
     {
         $this->assertPermission('businessprocess/modify');
 
         $bp = $this->loadModifiedBpConfig();
         $this->view->showDiff = $showDiff = (bool) $this->params->get('showDiff', false);
 
-        $this->view->source = LegacyConfigRenderer::renderConfig($bp);
+        $this->view->definition = json_encode(
+            DefinitionCodec::encode($bp),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
         if ($this->view->showDiff) {
             $this->view->diff = ConfigDiff::create(
-                $this->storage()->getSource($this->view->configName),
-                $this->view->source
+                json_encode(
+                    $this->storage()->getDefinition($this->view->configName),
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+                ),
+                $this->view->definition
             );
             $title = sprintf(
-                $this->translate('%s: Source Code Differences'),
+                $this->translate('%s: Definition Differences'),
                 $bp->getTitle()
             );
         } else {
             $title = sprintf(
-                $this->translate('%s: Source Code'),
+                $this->translate('%s: Definition'),
                 $bp->getTitle()
             );
         }
 
         $this->setTitle($title);
         $this->controls()
-            ->add($this->tabsForConfig($bp)->activate('source'))
+            ->add($this->tabsForConfig($bp)->activate('definition'))
             ->add(Html::tag('h1', null, $title))
             ->add($this->createConfigActionBar($bp, $showDiff));
 
-        $this->setViewScript('process/source');
+        $this->setViewScript('process/definition');
     }
 
     /**
-     * Download a process configuration file
+     * Download a structured process definition
      */
     public function downloadAction()
     {
@@ -575,13 +596,16 @@ class ProcessController extends Controller
         $response->setHeader(
             'Content-Disposition',
             sprintf(
-                'attachment; filename="%s.conf";',
+                'attachment; filename="%s.json";',
                 $config->getName()
             )
         );
-        $response->setHeader('Content-Type', 'text/plain');
+        $response->setHeader('Content-Type', 'application/json');
 
-        echo LegacyConfigRenderer::renderConfig($config);
+        echo json_encode(
+            DefinitionCodec::encode($config),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
         $this->doNotRender();
     }
 
@@ -624,12 +648,12 @@ class ProcessController extends Controller
             $actionBar->add(Html::tag(
                 'a',
                 [
-                    'href'  => Url::fromPath('businessprocess/process/source', $params),
-                    'title' => $this->translate('Show source code')
+                    'href'  => Url::fromPath('businessprocess/process/definition', $params),
+                    'title' => $this->translate('Show structured definition')
                 ],
                 [
                     new Icon('file-lines'),
-                    $this->translate('Source'),
+                    $this->translate('Definition'),
                 ]
             ));
         } else {
@@ -641,7 +665,7 @@ class ProcessController extends Controller
             $actionBar->add(Html::tag(
                 'a',
                 [
-                    'href'  => Url::fromPath('businessprocess/process/source', $params),
+                    'href'  => Url::fromPath('businessprocess/process/definition', $params),
                     'title' => $this->translate('Highlight changes')
                 ],
                 [
@@ -656,7 +680,7 @@ class ProcessController extends Controller
             [
                 'href'      => Url::fromPath('businessprocess/process/download', ['config' => $config->getName()]),
                 'target'    => '_blank',
-                'title'     => $this->translate('Download process configuration')
+                'title'     => $this->translate('Download process definition')
             ],
             [
                 new Icon('download'),
@@ -684,7 +708,7 @@ class ProcessController extends Controller
             'label' => $this->translate('Create'),
             'url'   => 'businessprocess/process/create'
         ))->add('upload', array(
-            'label' => $this->translate('Upload'),
+            'label' => $this->translate('Import'),
             'url'   => 'businessprocess/process/upload'
         ));
     }
@@ -704,9 +728,9 @@ class ProcessController extends Controller
             $params['showDiff'] = true;
         }
 
-        $tabs->add('source', array(
-            'label' => $this->translate('Source'),
-            'url'   => Url::fromPath('businessprocess/process/source', $params)
+        $tabs->add('definition', array(
+            'label' => $this->translate('Definition'),
+            'url'   => Url::fromPath('businessprocess/process/definition', $params)
         ));
 
         return $tabs;

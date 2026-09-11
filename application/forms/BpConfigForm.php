@@ -7,7 +7,10 @@ namespace Icinga\Module\Businessprocess\Forms;
 
 use Icinga\Authentication\Auth;
 use Icinga\Module\Businessprocess\BpConfig;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
+use Icinga\Module\Businessprocess\PublicHealth\Settings as PublicHealthSettings;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
+use RuntimeException;
 
 class BpConfigForm extends BpConfigBaseForm
 {
@@ -61,19 +64,6 @@ class BpConfigForm extends BpConfigBaseForm
             'rows' => 4,
         ));
 
-        if (! empty($this->listAvailableBackends())) {
-            $this->addElement('select', 'Backend', array(
-                'label'       => $this->translate('Backend'),
-                'description' => $this->translate(
-                    'Icinga Web Monitoring Backend where current object states for'
-                    . ' this process should be retrieved from'
-                ),
-                'multiOptions' => array(
-                        '' => $this->translate('Use the configured default backend'),
-                    ) + $this->listAvailableBackends()
-            ));
-        }
-
         $this->addElement('select', 'Statetype', array(
             'label'       => $this->translate('State Type'),
             'required'    => true,
@@ -97,6 +87,60 @@ class BpConfigForm extends BpConfigBaseForm
                 'no'  => $this->translate('No'),
             )
         ));
+
+        $this->addElement('text', 'PublicApiAvailability', [
+            'label' => $this->translate('Public API availability'),
+            'value' => PublicHealthSettings::isEnabled()
+                ? $this->translate('Available globally')
+                : $this->translate('Disabled globally'),
+            'disabled' => true,
+            'description' => PublicHealthSettings::isEnabled()
+                ? $this->translate('The global API is enabled. The overall status includes all root nodes. Public Node Scope controls which node details are exposed.')
+                : $this->translate('The global API is disabled in the deployment. Enable businessProcess.publicHealth.enabled in the Helm values.')
+        ]);
+
+        $this->addElement('select', 'PublicApi', [
+            'label' => $this->translate('Public Health API'),
+            'required' => true,
+            'description' => $this->translate(
+                'Anonymous access: published process nodes and selected Kubernetes objects are exposed. Kubernetes children follow Expand Kubernetes dependencies and Public Node Scope.'
+                . ' Allowed users, groups and roles below do not restrict this public API.'
+            ),
+            'multiOptions' => [
+                'no' => $this->translate('Disabled'),
+                'yes' => $this->translate('Enabled')
+            ]
+        ]);
+
+        $this->addElement('text', 'PublicApiPath', [
+            'label' => $this->translate('Public Health Path'),
+            'description' => $this->translate(
+                'URL: /businessprocess/health/<path>. Prefilled from the ID and stored independently of the display name.'
+                . ' Use lowercase letters, numbers and hyphens (maximum 63 characters).'
+                . ' Changing this path changes the public URL.'
+            ),
+            'maxlength' => 63,
+            'placeholder' => 'icinga',
+            'data-public-health-path' => '1'
+        ]);
+
+        $this->addElement('select', 'PublicApiScope', [
+            'label' => $this->translate('Public Node Scope'),
+            'required' => true,
+            'multiOptions' => [
+                'roots' => $this->translate('Explicitly published root nodes only'),
+                'published' => $this->translate('All published nodes including expanded Kubernetes children')
+            ]
+        ]);
+
+        $this->addElement('select', 'PublicApiRelations', [
+            'label' => $this->translate('Public Relations'),
+            'required' => true,
+            'multiOptions' => [
+                'none' => $this->translate('Do not expose relations'),
+                'links' => $this->translate('Link published parents and children')
+            ]
+        ]);
 
         $this->addElement('text', 'AllowedUsers', array(
             'label'       => $this->translate('Allowed Users'),
@@ -132,6 +176,9 @@ class BpConfigForm extends BpConfigBaseForm
                     $el->setValue($v);
                 }
             }
+            $this->getElement('PublicApiPath')->setValue(
+                PublicHealthService::pathForConfig($config)
+            );
             $this->getElement('name')
                  ->setValue($config->getName())
                  ->setAttrib('readonly', true);
@@ -177,6 +224,10 @@ class BpConfigForm extends BpConfigBaseForm
     {
         $name = $this->getValue('name');
 
+        if (! $this->validatePublicApiSettings($name)) {
+            return;
+        }
+
         if ($this->bp === null) {
             if ($this->storage->hasProcess($name)) {
                 $this->addError(sprintf(
@@ -208,7 +259,7 @@ class BpConfigForm extends BpConfigBaseForm
         $meta = $config->getMetadata();
         foreach ($this->getValues() as $key => $value) {
             if (
-                ! in_array($key, ['Title', 'Description', 'Backend'], true)
+                ! in_array($key, ['Title', 'Description'], true)
                 && ($value === null || $value === '')
             ) {
                 continue;
@@ -222,6 +273,55 @@ class BpConfigForm extends BpConfigBaseForm
         $this->storage->storeProcess($config);
         $config->clearAppliedChanges();
         parent::onSuccess();
+    }
+
+    protected function validatePublicApiSettings(string $name): bool
+    {
+        $enabled = $this->getValue('PublicApi') === 'yes';
+        $path = trim((string) $this->getValue('PublicApiPath'));
+        if ($path === '') {
+            $path = $this->bp === null
+                ? PublicHealthService::slug($name)
+                : PublicHealthService::pathForConfig($this->bp);
+        }
+        $this->getElement('PublicApiPath')->setValue($path);
+        if (! PublicHealthService::isValidConfigPath($path)) {
+            $this->getElement('PublicApiPath')->addError(
+                $this->translate('Use 1 to 63 lowercase letters, numbers and single hyphens between words')
+            );
+            return false;
+        }
+
+        if ($enabled) {
+            foreach ($this->storage->listAllProcessNames() as $otherName) {
+                if ($otherName === $name) {
+                    continue;
+                }
+                $other = $this->storage->loadMetadata($otherName);
+                if ($other->isPublicApiEnabled() && PublicHealthService::pathForMetadata($other) === $path) {
+                    $this->getElement('PublicApiPath')->addError(
+                        $this->translate('This public health path is already in use')
+                    );
+                    return false;
+                }
+            }
+
+            if ($this->bp !== null) {
+                try {
+                    PublicHealthService::assertValidNodePaths(
+                        $this->bp,
+                        (string) $this->getValue('PublicApiScope')
+                    );
+                } catch (RuntimeException $_) {
+                    $this->getElement('PublicApiScope')->addError(
+                        $this->translate('Published process display names must generate unique valid paths')
+                    );
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     public function hasDeleteButton()

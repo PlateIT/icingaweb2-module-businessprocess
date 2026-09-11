@@ -1,6 +1,71 @@
 // SPDX-FileCopyrightText: 2018 Icinga GmbH <https://icinga.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+.selector-preview {
+    margin: .75em 0 1em; padding: .75em; border: 1px solid @gray-light; border-radius: .25em;
+    ul { list-style: none; padding: 0; margin: 0; max-height: 18em; overflow-y: auto; }
+    li { display: flex; align-items: center; gap: .6em; padding: .3em 0; }
+    .selector-preview-state { display: inline-block; width: .75em; height: .75em; flex-shrink: 0; border-radius: 50%; background: #8999a6; }
+    .state-ok { background: #44bb77; }
+    .state-warning { background: #ffaa44; }
+    .state-critical { background: #ff5566; }
+}
+
+.controls .action-bar .health-url-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: @icinga-blue;
+    font: inherit;
+    cursor: pointer;
+    &:hover, &[aria-expanded="true"] { text-decoration: underline; }
+}
+
+.controls .health-url-panel {
+    clear: both;
+    max-width: 65em;
+    padding: 0.75em 1em;
+    margin: 0.5em 0 0.75em;
+    border: 1px solid @gray-light;
+    border-radius: 0.3em;
+    background: @body-bg-color;
+    color: @text-color;
+    &[hidden] { display: none; }
+    p { margin: 0 0 0.5em; color: @text-color; }
+    .health-url-entry {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5em;
+        margin: 0.5em 0;
+        strong { flex-basis: 100%; }
+        input {
+            flex: 1 1 20em;
+            min-width: 0;
+            max-width: 100%;
+            padding: 0.45em 0.6em;
+            border: 1px solid @gray-light;
+            border-radius: 0.2em;
+            background: @body-bg-color;
+            color: @text-color;
+            font-family: monospace;
+        }
+        button, a {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            padding: 0.4em 0.65em;
+            border: 1px solid @gray-light;
+            border-radius: 0.2em;
+            background: @body-bg-color;
+            color: @icinga-blue;
+            font: inherit;
+            cursor: pointer;
+        }
+    }
+}
 a:focus {
     outline: none;
     text-decoration: underline;
@@ -297,8 +362,8 @@ ul.bp {
     }
 }
 
-// ** Node inspect broken files **/
-ul.broken-files {
+// ** Node inspect invalid definitions **/
+ul.invalid-definitions {
     .rounded-corners();
     padding: 1em;
     margin: 1em 0;
@@ -311,7 +376,7 @@ ul.broken-files {
         font-weight: bold;
     }
 }
-// ** END Node inspect broken files **/
+// ** END Node inspect invalid definitions **/
 
 /** BEGIN Dashboard **/
 .overview-dashboard {
@@ -798,7 +863,7 @@ ul.warning {
     background-color: @color-warning;
 }
 
-table.sourcecode {
+table.definition-code {
     font-family: monospace;
     white-space: pre-wrap;
 
@@ -987,31 +1052,6 @@ form.bp-form {
 }
 
 /** END of forms **/
-
-/* Form fallback styles, remove once <=2.9.5 support is dropped */
-
-.icinga-controls {
-    input[type="file"] {
-        background-color: @low-sat-blue;
-    }
-
-    button[type="button"] {
-        background-color: @low-sat-blue;
-    }
-}
-
-form.icinga-form {
-    input[type="file"] {
-        flex: 1 1 auto;
-        width: 0;
-    }
-
-    button[type="button"] {
-        line-height: normal;
-    }
-}
-
-/* Form fallback styles end */
 
 /** Custom font styling **/
 textarea.smaller {

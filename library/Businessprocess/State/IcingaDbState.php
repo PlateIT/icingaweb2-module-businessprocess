@@ -5,8 +5,8 @@
 
 namespace Icinga\Module\Businessprocess\State;
 
-use Exception;
 use Icinga\Application\Benchmark;
+use Icinga\Application\Logger;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\IcingaDbObject;
 use Icinga\Module\Businessprocess\ServiceNode;
@@ -15,6 +15,7 @@ use Icinga\Module\Icingadb\Model\Host;
 use Icinga\Module\Icingadb\Model\Service;
 use ipl\Sql\Connection as IcingaDbConnection;
 use ipl\Stdlib\Filter;
+use Throwable;
 
 class IcingaDbState
 {
@@ -32,8 +33,19 @@ class IcingaDbState
 
     public static function apply(BpConfig $config)
     {
-        $self = new static($config);
-        $self->retrieveStatesFromBackend();
+        if ($config->listInvolvedHostNames() === []) {
+            return $config;
+        }
+
+        try {
+            $self = new static($config);
+            $self->retrieveStatesFromBackend();
+        } catch (Throwable $error) {
+            $config->addError(
+                $config->translate('Could not retrieve process state: %s'),
+                $error->getMessage()
+            );
+        }
 
         return $config;
     }
@@ -44,7 +56,7 @@ class IcingaDbState
 
         try {
             $this->reallyRetrieveStatesFromBackend();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $config->addError(
                 $config->translate('Could not retrieve process state: %s'),
                 $e->getMessage()
@@ -90,68 +102,64 @@ class IcingaDbState
             'is_acknowledged' => 'service.state.is_acknowledged'
         ])->filter(Filter::equal('host.name', $involvedHostNames));
 
-        // All of this is ipl-sql now, for performance reasons
+        // Query and enrich each object exactly once. Imported configurations
+        // reuse the same result set instead of multiplying DB/Redis work.
+        $serviceResults = $this->fetchRows($services, 'service');
+        $hostResults = $this->fetchRows($hosts, 'host');
+
         foreach ($config->listInvolvedConfigs() as $cfg) {
-            $serviceIds = [];
-            $serviceResults = [];
-            foreach ($this->backend->yieldAll($services->assembleSelect()) as $row) {
-                $row->hex_id = bin2hex(is_resource($row->id) ? stream_get_contents($row->id) : $row->id);
-                $serviceIds[] = $row->hex_id;
-                $serviceResults[] = $row;
-            }
-
-            $redisServiceResults = iterator_to_array(IcingaRedis::fetchServiceState($serviceIds, [
-                'hard_state',
-                'soft_state',
-                'last_state_change',
-                'in_downtime',
-                'is_acknowledged'
-            ]));
             foreach ($serviceResults as $row) {
-                if (isset($redisServiceResults[$row->hex_id])) {
-                    $row = (object) array_merge(
-                        (array) $row,
-                        $redisServiceResults[$row->hex_id]
-                    );
-                }
-
                 $this->handleDbRow($row, $cfg, 'service');
             }
-
-            Benchmark::measure('Retrieved states for ' . count($serviceIds) .  ' services in ' . $config->getName());
-
-            $hostIds = [];
-            $hostResults = [];
-            foreach ($this->backend->yieldAll($hosts->assembleSelect()) as $row) {
-                $row->hex_id = bin2hex(is_resource($row->id) ? stream_get_contents($row->id) : $row->id);
-                $hostIds[] = $row->hex_id;
-                $hostResults[] = $row;
-            }
-
-            $redisHostResults = iterator_to_array(IcingaRedis::fetchHostState($hostIds, [
-                'hard_state',
-                'soft_state',
-                'last_state_change',
-                'in_downtime',
-                'is_acknowledged'
-            ]));
             foreach ($hostResults as $row) {
-                if (isset($redisHostResults[$row->hex_id])) {
-                    $row = (object) array_merge(
-                        (array) $row,
-                        $redisHostResults[$row->hex_id]
-                    );
-                }
-
                 $this->handleDbRow($row, $cfg, 'host');
             }
-
-            Benchmark::measure('Retrieved states for ' . count($hostIds) .  ' hosts in ' . $config->getName());
         }
+
+        Benchmark::measure('Retrieved states for ' . count($serviceResults) . ' services in ' . $config->getName());
+        Benchmark::measure('Retrieved states for ' . count($hostResults) . ' hosts in ' . $config->getName());
 
         Benchmark::measure('Got states for business process ' . $config->getName());
 
         return $this;
+    }
+
+    private function fetchRows($query, string $type): array
+    {
+        $ids = [];
+        $rows = [];
+        foreach ($this->backend->yieldAll($query->assembleSelect()) as $row) {
+            $row->hex_id = bin2hex(is_resource($row->id) ? stream_get_contents($row->id) : $row->id);
+            $ids[] = $row->hex_id;
+            $rows[] = $row;
+        }
+
+        if ($ids === []) {
+            return [];
+        }
+
+        try {
+            $fields = ['hard_state', 'soft_state', 'last_state_change', 'in_downtime', 'is_acknowledged'];
+            $redisRows = $type === 'service'
+                ? iterator_to_array(IcingaRedis::fetchServiceState($ids, $fields))
+                : iterator_to_array(IcingaRedis::fetchHostState($ids, $fields));
+        } catch (Throwable $error) {
+            Logger::warning(
+                'Could not enrich Business Process %s states from Icinga Redis (%s): %s',
+                $type,
+                get_class($error),
+                $error->getMessage()
+            );
+            $redisRows = [];
+        }
+
+        foreach ($rows as $index => $row) {
+            if (isset($redisRows[$row->hex_id])) {
+                $rows[$index] = (object) array_merge((array) $row, $redisRows[$row->hex_id]);
+            }
+        }
+
+        return $rows;
     }
 
     protected function handleDbRow($row, BpConfig $config, $type)

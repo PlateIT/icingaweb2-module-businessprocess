@@ -9,7 +9,7 @@ use Icinga\Application\Config;
 use Icinga\Application\ApplicationBootstrap;
 use Icinga\Application\Icinga;
 use Icinga\Module\Businessprocess\BpConfig;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 
 abstract class BaseTestCase extends \Icinga\Test\BaseTestCase
 {
@@ -44,11 +44,11 @@ abstract class BaseTestCase extends \Icinga\Test\BaseTestCase
     }
 
     /**
-     * @return LegacyStorage
+     * @return ApiStorage
      */
     protected function makeInstance()
     {
-        return new LegacyStorage($this->emptyConfigSection());
+        return new ApiStorage($this->emptyConfigSection());
     }
 
     /**

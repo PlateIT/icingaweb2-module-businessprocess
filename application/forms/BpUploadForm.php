@@ -7,9 +7,11 @@ namespace Icinga\Module\Businessprocess\Forms;
 
 use Exception;
 use Icinga\Module\Businessprocess\BpConfig;
-use Icinga\Module\Businessprocess\Storage\LegacyConfigParser;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
+use Icinga\Module\Businessprocess\Storage\DefinitionCodec;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
 use Icinga\Web\Notification;
+use RuntimeException;
 
 class BpUploadForm extends BpConfigBaseForm
 {
@@ -21,7 +23,7 @@ class BpUploadForm extends BpConfigBaseForm
 
     protected $deleteButtonName;
 
-    private $sourceCode;
+    private $definitionJson;
 
     /** @var BpConfig */
     private $uploadedConfig;
@@ -29,7 +31,7 @@ class BpUploadForm extends BpConfigBaseForm
     public function setup()
     {
         $this->showUpload();
-        if ($this->hasSource()) {
+        if ($this->hasDefinition()) {
             $this->showDetails();
         }
     }
@@ -66,12 +68,12 @@ class BpUploadForm extends BpConfigBaseForm
             ),
         ));
 
-        $this->addElement('textarea', 'source', array(
-            'label'       => $this->translate('Source'),
+        $this->addElement('textarea', 'definition', array(
+            'label'       => $this->translate('Definition'),
             'description' => $this->translate(
-                'Business process source code'
+                'Structured Business Process JSON definition'
             ),
-            'value' => $this->sourceCode,
+            'value' => $this->definitionJson,
             'class' => 'preformatted smaller',
             'rows'  => 7,
         ));
@@ -86,22 +88,26 @@ class BpUploadForm extends BpConfigBaseForm
     public function getUploadedConfig()
     {
         if ($this->uploadedConfig === null) {
-            $this->uploadedConfig = $this->parseSubmittedSourceCode();
+            $this->uploadedConfig = $this->parseSubmittedDefinition();
         }
 
         return $this->uploadedConfig;
     }
 
-    protected function parseSubmittedSourceCode()
+    protected function parseSubmittedDefinition()
     {
-        $code = $this->getSentValue('source');
+        $code = $this->getSentValue('definition');
         $name = $this->getSentValue('name', '<new config>');
         if (empty($code)) {
-            $code = $this->sourceCode;
+            $code = $this->definitionJson;
         }
 
         try {
-            $config = LegacyConfigParser::parseString($name, $code);
+            $definition = json_decode($code, true, 512, JSON_THROW_ON_ERROR);
+            if (! is_array($definition)) {
+                throw new \RuntimeException('The Business Process definition must be a JSON object');
+            }
+            $config = DefinitionCodec::decode($name, $definition);
 
             if ($config->hasErrors()) {
                 foreach ($config->getErrors() as $error) {
@@ -116,15 +122,15 @@ class BpUploadForm extends BpConfigBaseForm
         return $config;
     }
 
-    protected function hasSource()
+    protected function hasDefinition()
     {
-        if ($this->hasBeenSent() && $source = $this->getSentValue('source')) {
-            $this->sourceCode = $source;
+        if ($this->hasBeenSent() && $definition = $this->getSentValue('definition')) {
+            $this->definitionJson = $definition;
         } else {
-            $this->processUploadedSource();
+            $this->processUploadedDefinition();
         }
 
-        if (empty($this->sourceCode)) {
+        if (empty($this->definitionJson)) {
             return false;
         } else {
             $this->removeElement('uploaded_file');
@@ -157,7 +163,7 @@ class BpUploadForm extends BpConfigBaseForm
         return sys_get_temp_dir();
     }
 
-    protected function processUploadedSource()
+    protected function processUploadedDefinition()
     {
         /** @var ?\Zend_Form_Element_File $el */
         $el = $this->getElement('uploaded_file');
@@ -171,7 +177,7 @@ class BpUploadForm extends BpConfigBaseForm
 
             $el->addFilter('Rename', $tmpfile);
             if ($el->receive()) {
-                $this->sourceCode = file_get_contents($tmpfile);
+                $this->definitionJson = file_get_contents($tmpfile);
                 unlink($tmpfile);
             } else {
                 foreach ($el->file->getMessages() as $error) {
@@ -200,6 +206,9 @@ class BpUploadForm extends BpConfigBaseForm
         if (! $this->prepareMetadata($config)) {
             return;
         }
+        if (! $this->validatePublicHealth($config)) {
+            return;
+        }
 
         $this->storage->storeProcess($config);
         Notification::success(sprintf($this->translate('Process %s has been stored'), $name));
@@ -207,5 +216,41 @@ class BpUploadForm extends BpConfigBaseForm
         $this->getSuccessUrl()->setParam('config', $name);
 
         parent::onSuccess();
+    }
+
+    protected function validatePublicHealth(BpConfig $config): bool
+    {
+        $metadata = $config->getMetadata();
+        if (! $metadata->isPublicApiEnabled()) {
+            return true;
+        }
+        if (
+            ! in_array($metadata->getPublicApiScope(), ['roots', 'published'], true)
+            || ! in_array($metadata->getPublicApiRelations(), ['none', 'links'], true)
+        ) {
+            $this->addError($this->translate('The public health API settings are invalid'));
+            return false;
+        }
+        $configPath = PublicHealthService::pathForConfig($config);
+        foreach ($this->storage->listAllProcessNames() as $name) {
+            if ($name === $config->getName()) {
+                continue;
+            }
+            $other = $this->storage->loadProcess($name);
+            if ($other->getMetadata()->isPublicApiEnabled()
+                && PublicHealthService::pathForConfig($other) === $configPath
+            ) {
+                $this->addError($this->translate('The generated public health path is already in use'));
+                return false;
+            }
+        }
+        try {
+            PublicHealthService::assertValidNodePaths($config, $metadata->getPublicApiScope());
+        } catch (RuntimeException $_) {
+            $this->addError($this->translate('A published process node has invalid public health settings'));
+            return false;
+        }
+
+        return true;
     }
 }

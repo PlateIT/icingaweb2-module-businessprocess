@@ -35,6 +35,8 @@ class BpNode extends Node
     protected $missingChildren;
     protected $stateOverrides = [];
 
+    protected bool $publicStatus = false;
+
     protected static $emptyStateSummary = array(
         'CRITICAL'            => 0,
         'CRITICAL-HANDLED'    => 0,
@@ -306,6 +308,18 @@ class BpNode extends Node
     {
         $this->assertValidOperator($operator);
         $this->operator = $operator;
+        return $this;
+    }
+
+    public function getPublicStatus(): bool
+    {
+        return $this->publicStatus;
+    }
+
+    public function setPublicStatus(bool $publicStatus): self
+    {
+        $this->publicStatus = $publicStatus;
+
         return $this;
     }
 

@@ -6,8 +6,12 @@
 namespace Icinga\Module\Businessprocess\Forms;
 
 use Icinga\Module\Businessprocess\BpNode;
+use Icinga\Module\Businessprocess\Kubernetes\Kind as KubernetesKind;
+use Icinga\Module\Businessprocess\KubernetesNode;
+use Icinga\Module\Businessprocess\KubernetesSelectorNode;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
 use Icinga\Module\Businessprocess\Node;
+use Icinga\Module\Businessprocess\PublicHealth\PublicHealthService;
 use Icinga\Module\Businessprocess\Web\Form\BpConfigBaseForm;
 use Icinga\Web\Notification;
 use Icinga\Web\View;
@@ -69,25 +73,115 @@ class ProcessForm extends BpConfigBaseForm
             )
         ));
 
-        $this->addElement('text', 'url', array(
+        $urlElementOptions = array(
             'label'        => $this->translate('Info URL'),
             'description' => $this->translate(
                 'URL pointing to more information about this node'
             )
-        ));
+        );
+        if ($this->node instanceof KubernetesNode || $this->node instanceof KubernetesSelectorNode) {
+            $urlElementOptions['readonly'] = true;
+        }
+        $this->addElement('text', 'url', $urlElementOptions);
+
+        if (! ($this->node instanceof KubernetesNode || $this->node instanceof KubernetesSelectorNode)) {
+            $this->addElement('checkbox', 'publicStatus', [
+                'label' => $this->translate('Publish service status'),
+                'description' => $this->translate('Expose this process node through the unauthenticated health API')
+            ]);
+            $this->addElement('text', 'publicPath', [
+                'label' => $this->translate('Public Health Path'),
+                'description' => $this->translate('Generated automatically from the process hierarchy and names'),
+                'disabled' => true
+            ]);
+        }
+
+        if ($this->node instanceof KubernetesNode) {
+            $this->addKubernetesElements($this->node);
+        } elseif ($this->node instanceof KubernetesSelectorNode) {
+            $this->addKubernetesSelectorElements($this->node);
+        }
 
         if ($node = $this->node) {
             if ($node->hasAlias()) {
-                $this->getElement('alias')->setValue($node->getAlias());
+                $alias = $node instanceof KubernetesNode ? $node->getStoredAlias() : $node->getAlias();
+                $this->getElement('alias')->setValue($alias);
             }
             $this->getElement('operator')->setValue($node->getOperator());
             $this->getElement('display')->setValue($node->getDisplay());
             if ($node->hasInfoUrl()) {
                 $this->getElement('url')->setValue($node->getInfoUrl());
             }
+            if ($this->getElement('publicStatus') !== null) {
+                $this->getElement('publicStatus')->setValue($node->getPublicStatus());
+                $this->getElement('publicPath')->setValue(
+                    '/businessprocess/health/'
+                    . PublicHealthService::pathForConfig($this->bp)
+                    . '/'
+                    . PublicHealthService::pathForNode($this->bp, $node)
+                );
+            }
         }
     }
 
+
+    protected function addKubernetesElements(KubernetesNode $node): void
+    {
+        $this->addElement('checkbox', 'expandDependencies', [
+            'label' => $this->translate('Expand Kubernetes dependencies'),
+            'checked' => $node->getExpandDependencies()
+        ]);
+
+        if ($node->getKind() === 'namespace') {
+            $options = [];
+            foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+                $options[$option] = $this->translate(ucwords(str_replace('_', ' ', $option)));
+            }
+
+
+            foreach ($options as $option => $label) {
+                $this->addElement('checkbox', 'namespaceInclude_' . $option, [
+                    'label' => $label,
+                    'checked' => in_array($option, $node->getNamespaceInclude(), true)
+                ]);
+            }
+        }
+    }
+
+    protected function addKubernetesSelectorElements(KubernetesSelectorNode $node): void
+    {
+        // Keep the identity and internal operator out of the everyday editor.
+        $this->getElement('name')->setAttrib('data-selector-advanced', '1');
+        $this->getElement('operator')->setAttrib('data-selector-advanced', '1');
+        $this->getElement('url')->setAttrib('data-selector-advanced', '1');
+        foreach (['name', 'operator', 'url'] as $field) {
+            $this->getElement($field)->setAttrib('data-selector-ignore-value', '1');
+        }
+        $values = [];
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::FILTERS as $field) {
+            $values[$field] = (string) $this->getSentValue('selector_' . $field, $node->getSelector()[$field] ?? '');
+        }
+        $values['states'] = (array) $this->getSentValue('selector_states', $node->getSelector()['states'] ?? []);
+        $values['aggregation'] = $this->getSentValue('selector_aggregation', $node->getAggregation()) ?: 'worst';
+        $choices = \Icinga\Module\Businessprocess\Kubernetes\SelectorForm::choices($values);
+        foreach (\Icinga\Module\Businessprocess\Kubernetes\SelectorForm::fields(
+            $values, $choices, fn($text) => $this->translate($text), false
+        ) as $name => [$type, $attributes]) {
+            $this->addElement($type, $name, $attributes);
+        }
+    }
+
+    protected function getNamespaceIncludeValues(): array
+    {
+        $include = [];
+        foreach (KubernetesKind::NAMESPACE_INCLUDE_OPTIONS as $option) {
+            if ((bool) $this->getValue('namespaceInclude_' . $option)) {
+                $include[] = $option;
+            }
+        }
+
+        return $include;
+    }
     /**
      * @param BpNode $node
      * @return $this
@@ -100,6 +194,23 @@ class ProcessForm extends BpConfigBaseForm
 
     public function onSuccess()
     {
+        if ($this->getElement('publicStatus') !== null) {
+            $publicStatus = (bool) $this->getValue('publicStatus');
+            $isRoot = $this->node !== null
+                ? $this->bp->hasRootNode($this->node->getName())
+                : (int) $this->getValue('display') > 0;
+            if (
+                $publicStatus
+                && $this->bp->getMetadata()->getPublicApiScope() === 'roots'
+                && ! $isRoot
+            ) {
+                $this->getElement('publicStatus')->addError(
+                    $this->translate('Only root nodes can be published with the configured public API scope')
+                );
+                return;
+            }
+        }
+
         $changes = ProcessChanges::construct($this->bp, $this->session);
 
         $modifications = array();
@@ -122,11 +233,43 @@ class ProcessForm extends BpConfigBaseForm
             if ($operator !== $node->getOperator()) {
                 $modifications['operator'] = $operator;
             }
-            if ($url !== $node->getInfoUrl()) {
+            if (! ($node instanceof KubernetesNode || $node instanceof KubernetesSelectorNode) && $url !== $node->getInfoUrl()) {
                 $modifications['infoUrl'] = $url;
             }
-            if ($alias !== $node->getAlias()) {
+            $currentAlias = $node instanceof KubernetesNode ? $node->getStoredAlias() : $node->getAlias();
+            if ($alias !== $currentAlias) {
                 $modifications['alias'] = $alias;
+            }
+            if ($node instanceof KubernetesNode) {
+                $expandDependencies = (bool) $this->getValue('expandDependencies');
+                if ($expandDependencies !== $node->getExpandDependencies()) {
+                    $modifications['expandDependencies'] = $expandDependencies;
+                }
+
+                if ($node->getKind() === 'namespace') {
+                    $namespaceInclude = $this->getNamespaceIncludeValues();
+                    if ($namespaceInclude !== $node->getNamespaceInclude()) {
+                        $modifications['namespaceInclude'] = $namespaceInclude;
+                    }
+                }
+            } elseif ($node instanceof KubernetesSelectorNode) {
+                $selector = [];
+                foreach (['cluster','group','version','kind','namespace','name','labels','ownerUID'] as $field) {
+                    $value = trim((string) $this->getValue('selector_' . $field));
+                    if ($value !== '') { $selector[$field] = $value; }
+                }
+                $states = array_values(array_intersect(
+                    (array) $this->getValue('selector_states'),
+                    ['ok', 'warning', 'critical', 'unknown']
+                ));
+                if ($states !== []) { $selector['states'] = $states; }
+                if ($selector !== $node->getSelector()) { $modifications['selector'] = $selector; }
+                $aggregation = (string) $this->getValue('selector_aggregation');
+                if ($aggregation !== $node->getAggregation()) { $modifications['aggregation'] = $aggregation; }
+            } elseif ($this->getElement('publicStatus') !== null) {
+                if ($publicStatus !== $node->getPublicStatus()) {
+                    $modifications['publicStatus'] = $publicStatus;
+                }
             }
         } else {
             $modifications = array(
@@ -134,6 +277,7 @@ class ProcessForm extends BpConfigBaseForm
                 'operator'   => $operator,
                 'infoUrl'    => $url,
                 'alias'      => $alias,
+                'publicStatus' => $publicStatus ?? false,
             );
         }
 

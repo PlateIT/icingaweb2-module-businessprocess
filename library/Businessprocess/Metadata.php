@@ -23,9 +23,12 @@ class Metadata
         'AllowedGroups' => null,
         'AllowedRoles'  => null,
         'AddToMenu'     => null,
-        'Backend'       => null,
         'Statetype'     => null,
         'ManualOrder'   => null,
+        'PublicApi'     => null,
+        'PublicApiPath' => null,
+        'PublicApiScope' => null,
+        'PublicApiRelations' => null,
         // 'SLAHosts'      => null
     );
 
@@ -258,6 +261,21 @@ class Metadata
     public function isManuallyOrdered()
     {
         return $this->get('ManualOrder') === 'yes';
+    }
+
+    public function isPublicApiEnabled(): bool
+    {
+        return $this->get('PublicApi', 'no') === 'yes';
+    }
+
+    public function getPublicApiScope(): string
+    {
+        return $this->get('PublicApiScope', 'roots');
+    }
+
+    public function getPublicApiRelations(): string
+    {
+        return $this->get('PublicApiRelations', 'none');
     }
 
     protected function splitCommaSeparated($string)

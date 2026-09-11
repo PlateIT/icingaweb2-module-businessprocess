@@ -8,7 +8,7 @@ namespace Icinga\Module\Businessprocess\Web;
 use Icinga\Application\Icinga;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Modification\ProcessChanges;
-use Icinga\Module\Businessprocess\Storage\LegacyStorage;
+use Icinga\Module\Businessprocess\Storage\ApiStorage;
 use Icinga\Module\Businessprocess\Storage\Storage;
 use Icinga\Module\Businessprocess\Web\Component\ActionBar;
 use Icinga\Module\Businessprocess\Web\Component\Controls;
@@ -217,7 +217,7 @@ class Controller extends CompatController
     protected function loadBpConfig()
     {
         $name = $this->params->get('config');
-        /** @var LegacyStorage $storage */
+        /** @var ApiStorage $storage */
         $storage = $this->storage();
 
         if (! $storage->hasProcess($name)) {
@@ -256,12 +256,12 @@ class Controller extends CompatController
     }
 
     /**
-     * @return LegacyStorage
+     * @return ApiStorage
      */
     protected function storage()
     {
         if ($this->storage === null) {
-            $this->storage = LegacyStorage::getInstance();
+            $this->storage = ApiStorage::getInstance();
         }
 
         return $this->storage;

@@ -26,14 +26,14 @@ class NodeController extends Controller
         $name = $this->params->get('name');
         $this->addTitle($this->translate('Business Impact (%s)'), $name);
 
-        $brokenFiles = [];
+        $invalidDefinitions = [];
         $simulation = Simulation::fromSession($this->session());
         foreach ($this->storage()->listProcessNames() as $configName) {
             try {
                 $config = $this->storage()->loadProcess($configName);
             } catch (Exception $e) {
                 $meta = $this->storage()->loadMetadata($configName);
-                $brokenFiles[$meta->get('Title')] = $configName;
+                $invalidDefinitions[$meta->get('Title')] = $configName;
                 continue;
             }
 
@@ -112,24 +112,24 @@ class NodeController extends Controller
             $content->add($this->translate('No impact detected. Is this node part of a business process?'));
         }
 
-        if (! empty($brokenFiles)) {
+        if (! empty($invalidDefinitions)) {
             $elem = Html::tag(
                 'ul',
-                ['class' => 'broken-files'],
+                ['class' => 'invalid-definitions'],
                 tp(
-                    'The following business process has an invalid config file and therefore cannot be read:',
-                    'The following business processes have invalid config files and therefore cannot be read:',
-                    count($brokenFiles)
+                    'The following business process has an invalid definition and therefore cannot be read:',
+                    'The following business processes have invalid definitions and therefore cannot be read:',
+                    count($invalidDefinitions)
                 )
             );
 
-            foreach ($brokenFiles as $bpName => $fileName) {
+            foreach ($invalidDefinitions as $bpName => $configName) {
                 $elem->addHtml(
                     Html::tag(
                         'li',
                         new Link(
-                            sprintf('%s (%s.conf)', $bpName, $fileName),
-                            \ipl\Web\Url::fromPath('businessprocess/process/show', ['config' => $fileName])
+                            sprintf('%s (%s)', $bpName, $configName),
+                            \ipl\Web\Url::fromPath('businessprocess/process/show', ['config' => $configName])
                         )
                     )
                 );

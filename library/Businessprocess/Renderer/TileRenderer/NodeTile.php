@@ -8,6 +8,7 @@ namespace Icinga\Module\Businessprocess\Renderer\TileRenderer;
 use Icinga\Date\DateFormatter;
 use Icinga\Module\Businessprocess\BpNode;
 use Icinga\Module\Businessprocess\ImportedNode;
+use Icinga\Module\Businessprocess\KubernetesNode;
 use Icinga\Module\Businessprocess\MonitoredNode;
 use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\Renderer\Renderer;
@@ -76,7 +77,7 @@ class NodeTile extends BaseHtmlElement
         $attributes = $this->getAttributes();
         $attributes->add('class', $renderer->getNodeClasses($node));
         $attributes->add('id', $renderer->getId($node, $this->path));
-        if (! $renderer->isLocked()) {
+        if (! $renderer->isLocked() && ! ($node instanceof KubernetesNode && ! $node->isExplicit())) {
             $attributes->add('data-node-name', $node->getName());
         }
 
@@ -135,6 +136,9 @@ class NodeTile extends BaseHtmlElement
 
     protected function getMainNodeUrl(Node $node)
     {
+        if ($node instanceof KubernetesNode && ! $node->hasChildren()) {
+            return $node->getUrl();
+        }
         if ($node instanceof BpNode) {
             return $this->makeBpUrl($node);
         } else {
@@ -178,7 +182,7 @@ class NodeTile extends BaseHtmlElement
     {
         $node = $this->node;
         $url = $this->getMainNodeUrl($node);
-        if ($node instanceof MonitoredNode) {
+        if ($node instanceof MonitoredNode || ($node instanceof KubernetesNode && ! $node->hasChildren())) {
             $link = Html::tag(
                 'a',
                 ['href' => $url, 'data-base-target' => '_next'],
@@ -197,6 +201,7 @@ class NodeTile extends BaseHtmlElement
         $url = $this->getMainNodeUrl($node);
 
         if ($node instanceof BpNode) {
+            if (! ($node instanceof KubernetesNode) || $node->hasChildren()) {
             $this->actions()->add(Html::tag(
                 'a',
                 [
@@ -212,6 +217,7 @@ class NodeTile extends BaseHtmlElement
                 ],
                 new Icon('sitemap')
             ));
+            }
             if ($node instanceof ImportedNode) {
                 $bpConfig = $node->getBpConfig();
                 if ($bpConfig->isFaulty() || $bpConfig->hasNode($node->getName())) {
@@ -221,7 +227,7 @@ class NodeTile extends BaseHtmlElement
                             'data-base-target'  => '_next',
                             'href'              => $bpConfig->isFaulty()
                                 ? $this->renderer->getBaseUrl()->setParam('config', $bpConfig->getName())
-                                : $this->renderer->getSourceUrl($node)->getAbsoluteUrl(),
+                                : $this->renderer->getNodeUrl($node)->getAbsoluteUrl(),
                             'title'             => mt(
                                 'businessprocess',
                                 'Show this process as part of its original configuration'
@@ -282,6 +288,11 @@ class NodeTile extends BaseHtmlElement
             ]);
         }
 
+        $isKubernetesNode = $this->node instanceof KubernetesNode;
+        if ($isKubernetesNode && ! $this->node->isExplicit()) {
+            return;
+        }
+
         if ($this->node instanceof MonitoredNode) {
             $this->actions()->add(Html::tag(
                 'a',
@@ -326,19 +337,21 @@ class NodeTile extends BaseHtmlElement
                     new Icon('edit')
                 ));
 
-                $addUrl = $baseUrl->with([
-                    'node'      => $this->node->getName(),
-                    'action'    => 'add'
-                ]);
-                $addUrl->getParams()->addValues('path', $this->path);
-                $this->actions()->add(Html::tag(
-                    'a',
-                    [
-                        'href'  => $addUrl,
-                        'title' => mt('businessprocess', 'Add a new sub-node to this business process')
-                    ],
-                    new Icon('plus')
-                ));
+                if (! $isKubernetesNode) {
+                    $addUrl = $baseUrl->with([
+                        'node'      => $this->node->getName(),
+                        'action'    => 'add'
+                    ]);
+                    $addUrl->getParams()->addValues('path', $this->path);
+                    $this->actions()->add(Html::tag(
+                        'a',
+                        [
+                            'href'  => $addUrl,
+                            'title' => mt('businessprocess', 'Add a new sub-node to this business process')
+                        ],
+                        new Icon('plus')
+                    ));
+                }
             }
         }
 
@@ -352,7 +365,7 @@ class NodeTile extends BaseHtmlElement
                 'a',
                 [
                     'href'  => $baseUrl->with($params),
-                    'title' => mt('businessprocess', 'Delete this node')
+                    'title' => mt('businessprocess', 'Remove this node from the business process')
                 ],
                 new Icon('xmark')
             ));

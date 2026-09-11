@@ -5,12 +5,9 @@
 
 namespace Icinga\Module\Businessprocess\Web\Form;
 
-use Icinga\Application\Config;
-use Icinga\Application\Icinga;
 use Icinga\Authentication\Auth;
 use Icinga\Module\Businessprocess\BpConfig;
 use Icinga\Module\Businessprocess\Storage\Storage;
-use Icinga\Module\Monitoring\Backend\MonitoringBackend;
 use Icinga\Web\Session\SessionNamespace;
 use ipl\Sql\Connection as IcingaDbConnection;
 
@@ -22,23 +19,11 @@ abstract class BpConfigBaseForm extends QuickForm
     /** @var BpConfig */
     protected $bp;
 
-    /** @var MonitoringBackend|IcingaDbConnection*/
+    /** @var IcingaDbConnection */
     protected $backend;
 
     /** @var SessionNamespace */
     protected $session;
-
-    protected function listAvailableBackends()
-    {
-        $keys = [];
-        $moduleManager = Icinga::app()->getModuleManager();
-        if ($moduleManager->hasEnabled('monitoring')) {
-            $keys = array_keys(Config::module('monitoring', 'backends')->toArray());
-            $keys = array_combine($keys, $keys);
-        }
-
-        return $keys;
-    }
 
     /**
      * Set the storage to use
@@ -72,7 +57,7 @@ abstract class BpConfigBaseForm extends QuickForm
     /**
      * Set the backend to use
      *
-     * @param MonitoringBackend|IcingaDbConnection $backend
+     * @param IcingaDbConnection $backend
      *
      * @return $this
      */

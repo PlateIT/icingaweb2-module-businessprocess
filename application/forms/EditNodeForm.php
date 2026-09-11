@@ -12,7 +12,6 @@ use Icinga\Module\Businessprocess\Node;
 use Icinga\Module\Businessprocess\ServiceNode;
 use Icinga\Module\Businessprocess\Web\Form\Element\IplStateOverrides;
 use Icinga\Module\Businessprocess\Web\Form\Validator\HostServiceTermValidator;
-use Icinga\Module\Monitoring\Backend\MonitoringBackend;
 use Icinga\Web\Session\SessionNamespace;
 use ipl\Html\Attributes;
 use ipl\Html\FormattedString;
@@ -160,18 +159,12 @@ class EditNodeForm extends CompatForm
 
     protected function assembleServiceElements(): void
     {
-        if ($this->bp->getBackend() instanceof MonitoringBackend) {
-            $suggestionsPath = 'businessprocess/suggestions/monitoring-service';
-        } else {
-            $suggestionsPath = 'businessprocess/suggestions/icingadb-service';
-        }
-
         $node = $this->identifyChosenNode();
 
         $this->addHtml($this->createSearchInput(
             $this->translate('Service'),
             $node->getAlias() ?? $node->getName(),
-            $suggestionsPath
+            'businessprocess/suggestions/icingadb-service'
         ));
 
         $this->addElement('checkbox', 'overrideStates', [
@@ -195,18 +188,12 @@ class EditNodeForm extends CompatForm
 
     protected function assembleHostElements(): void
     {
-        if ($this->bp->getBackend() instanceof MonitoringBackend) {
-            $suggestionsPath = 'businessprocess/suggestions/monitoring-host';
-        } else {
-            $suggestionsPath = 'businessprocess/suggestions/icingadb-host';
-        }
-
         $node = $this->identifyChosenNode();
 
         $this->addHtml($this->createSearchInput(
             $this->translate('Host'),
             $node->getAlias() ?? $node->getName(),
-            $suggestionsPath
+            'businessprocess/suggestions/icingadb-host'
         ));
 
         $this->addElement('checkbox', 'overrideStates', [

@@ -1,45 +1,23 @@
 # State Overrides
 
-Business processes utilize their children's states to calculate their own state.
-While you can influence this with [operators](09-Operators.md), it's also possible
-to override individual states. (This applies to host and service nodes.)
+Business processes calculate their state from their children. In addition to
+[operators](09-Operators.md), a monitored node can map an observed state to a
+different state before aggregation.
 
-## Configuring Overrides
+## Configure overrides
 
-State overrides get configured per node. When adding or editing a node, you can
-define which state should be overridden with another one.
-
-Below `WARNING` is chosen as a replacement for `CRITICAL`.
+Unlock the process and edit the node. For every required mapping select the
+observed state and its replacement. The example below maps `CRITICAL` to
+`WARNING`.
 
 ![Service State Override Configuration](screenshot/07_state_overrides/0701_override_config.png "Service State Override Configuration")
 
-## Identifying Overrides
-
-In tile view overridden states are indicated by an additional state ball in the
-lower left of a tile. This is then the actual state the object is in.
+Tile view marks an override with an additional state ball showing the original
+state. Tree view shows both the original and effective state.
 
 ![Overridden Tile State](screenshot/07_state_overrides/0702_overridden_tile.png "Overridden Tile State")
-
-In tree view overridden states are indicated on the very right of a row. There
-the actual state is shown and which one it is replaced with.
-
 ![Overridden Tree State](screenshot/07_state_overrides/0703_overridden_tree.png "Overridden Tree State")
 
-## File Format Extensions
-
-The configuration file format has slightly been changed to accommodate state
-overrides. Though, previous configurations are perfectly upwards compatible.
-
-### New Extra Line
-
-For process nodes a new extra line is used to store state overrides.
-
-```
-state_overrides dev_database_servers!mysql;mysql|2-1
-```
-
-The full syntax for this is as follows:
-
-```
-state_overrides <process>!<child>|n-n[!<child>|n-n[,n-n]]
-```
+Overrides are stored explicitly in the node's `stateOverrides` object inside
+the version 2 JSON definition. The API validates and persists this structure
+atomically in PostgreSQL; no file-format extension is involved.
