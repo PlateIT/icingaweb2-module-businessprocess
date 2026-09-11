@@ -196,7 +196,10 @@ class ProcessController extends Controller
             $controls->add(
                 new RenderedProcessActionBar($bp, $renderer, $this->url())
             );
-            $controls->add(new \Icinga\Module\Businessprocess\Web\Component\HealthUrlPanel($bp));
+            $node = $this->getNode($bp);
+            $controls->add(new \Icinga\Module\Businessprocess\Web\Component\HealthUrlPanel(
+                $bp, $node instanceof \Icinga\Module\Businessprocess\BpNode ? $node : null
+            ));
         }
 
         if (! ($this->showFullscreen || $this->view->compact)) {

@@ -236,12 +236,16 @@ class PublicHealthService
 
         $components = [];
         foreach ($nodes as $nodePath => $node) {
+            if (! $config->hasRootNode($node->getName())) {
+                continue;
+            }
             $components[$nodePath] = $this->nodeDto(
                 $configPath,
                 $config,
                 $node,
                 $nodes,
-                $observedAt
+                $observedAt,
+                false
             );
         }
 
@@ -359,7 +363,8 @@ class PublicHealthService
         BpConfig $config,
         BpNode $node,
         array $publishedNodes,
-        string $observedAt
+        string $observedAt,
+        bool $includeChildren = true
     ): array {
         try {
             $status = StatusMapper::fromState($node->getState());
@@ -373,7 +378,7 @@ class PublicHealthService
             $links += $this->relationLinks($configPath, $node, $publishedNodes);
         }
 
-        return [
+        $result = [
             'status' => $status,
             'details' => [
                 'name' => $node->getAlias() ?: $node->getName(),
@@ -382,6 +387,22 @@ class PublicHealthService
                 'links' => $links
             ]
         ];
+        if ($includeChildren) {
+            $result['components'] = [];
+            $children = [];
+            foreach ($node->getChildren() as $child) {
+                $children[$child->getName()] = true;
+            }
+            foreach ($publishedNodes as $path => $child) {
+                if (isset($children[$child->getName()])) {
+                    $result['components'][$path] = $this->nodeDto(
+                        $configPath, $config, $child, $publishedNodes, $observedAt, false
+                    );
+                }
+            }
+        }
+
+        return $result;
     }
 
     protected function relationLinks(string $configPath, BpNode $node, array $publishedNodes): array
@@ -392,6 +413,9 @@ class PublicHealthService
         }
 
         $parents = [];
+        if ($node->getBpConfig()->hasRootNode($node->getName())) {
+            $parents[] = $this->configUrl($configPath);
+        }
         foreach ($node->getParents() as $parent) {
             if (isset($byName[$parent->getName()])) {
                 $parents[] = $this->nodeUrl(

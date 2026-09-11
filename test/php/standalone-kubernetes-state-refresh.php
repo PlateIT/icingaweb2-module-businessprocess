@@ -106,5 +106,30 @@ namespace {
         );
     }
 
+    $remoteId = '20000000-0000-4000-8000-000000000000';
+    $remote = $config->createKubernetesNode('pod', $remoteId)->setExpandDependencies(false);
+    file_put_contents($stateFile, json_encode([
+        'state' => 'ok', 'freshness' => 'live', 'version' => 205,
+        'unavailableIds' => [$remoteId]
+    ], JSON_THROW_ON_ERROR));
+    KubernetesState::apply($config);
+    assertNodeState($node, KubernetesNode::ICINGA_OK, 'remote outage poisoned healthy local node');
+    assertNodeState($remote, KubernetesNode::ICINGA_UNKNOWN, 'unreachable remote was reported as healthy');
+    $repository = \Icinga\Module\Businessprocess\Kubernetes\ObjectRepository::class;
+    $repository::beginCalculation();
+    $repository::childrenMany([
+        ['kind' => 'pod', 'uuid' => $node->getUuid()],
+        ['kind' => 'pod', 'uuid' => $remoteId]
+    ]);
+    if ($repository::fetch('pod', $node->getUuid())->freshness !== 'live') {
+        throw new RuntimeException('remote graph outage contaminated local parent');
+    }
+    $failed = false;
+    try { $repository::fetch('pod', $remoteId); } catch (RuntimeException $_) { $failed = true; }
+    if (! $failed) { throw new RuntimeException('unknown remote graph interpreted as a deleted parent'); }
+    writeSourceState($stateFile, 'warning', 'live', 206);
+    KubernetesState::apply($config);
+    assertNodeState($node, KubernetesNode::ICINGA_WARNING, 'local state stopped refreshing after partial outage');
+
     echo "Kubernetes Business Process state refresh/load/outage test passed.\n";
 }

@@ -70,7 +70,11 @@ class PublicHealthTest extends BaseTestCase
         $this->assertSame(StatusMapper::DEGRADED, $catalog['status']);
         $this->assertSame(['public-services'], array_keys($catalog['components']));
         $components = $catalog['components']['public-services']['components'];
-        $this->assertSame(['eiam-produktion', 'eiam-produktion/idp'], array_keys($components));
+        $this->assertSame(['eiam-produktion'], array_keys($components));
+        $root = $service->node('public-services/eiam-produktion');
+        $this->assertSame(['eiam-produktion/idp'], array_keys($root['components']));
+        $this->assertArrayNotHasKey('components', $root['components']['eiam-produktion/idp']);
+        $this->assertSame(['/businessprocess/health/public-services'], $root['details']['links']['parent']);
         $this->assertSame(
             'public-services/eiam-produktion',
             $components['eiam-produktion']['details']['path']

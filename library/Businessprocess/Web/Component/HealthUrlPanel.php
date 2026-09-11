@@ -18,7 +18,7 @@ class HealthUrlPanel extends BaseHtmlElement
     protected $tag = 'div';
     protected $defaultAttributes = ['class' => 'health-url-panel', 'hidden' => true];
 
-    public function __construct(BpConfig $config)
+    public function __construct(BpConfig $config, ?BpNode $current = null)
     {
         $this->addAttributes(['data-health-config' => $config->getName()]);
 
@@ -33,7 +33,6 @@ class HealthUrlPanel extends BaseHtmlElement
             $this->add(Html::tag('p', null, mt('businessprocess', 'Store pending changes to apply these URLs.')));
         }
         $base = 'businessprocess/health/' . PublicHealthService::pathForConfig($config);
-        $this->addUrl($config->getTitle(), $base);
         // Materialize parent links before calculating hierarchy-based paths.
         foreach ($config->getBpNodes() as $node) {
             if ($node instanceof BpNode) {
@@ -41,16 +40,28 @@ class HealthUrlPanel extends BaseHtmlElement
             }
         }
         $count = 0;
+        $visible = [];
+        if ($current === null || $config->hasRootNode($current->getName())) {
+            $this->addUrl($config->getTitle(), $base);
+        }
+        if ($current === null) {
+            $related = $config->getRootNodes();
+        } else {
+            $related = array_merge([$current], $current->getParents(), $current->getChildren());
+        }
+        foreach ($related as $node) {
+            $visible[$node->getName()] = true;
+        }
         foreach ($config->getBpNodes() as $node) {
-            if (! PublicHealthService::isPublishedNode($node)
+            if (! isset($visible[$node->getName()]) || ! PublicHealthService::isPublishedNode($node)
                 || ($meta->getPublicApiScope() === 'roots' && ! $config->hasRootNode($node->getName()))) {
                 continue;
             }
-            $this->addUrl($node->getAlias(), $base . '/' . PublicHealthService::pathForNode($config, $node));
+            $this->addUrl($node->getAlias() ?: $node->getName(), $base . '/' . PublicHealthService::pathForNode($config, $node));
             ++$count;
         }
         if ($count === 0) {
-            $this->add(Html::tag('p', null, mt('businessprocess', 'No process nodes are published.')));
+            $this->add(Html::tag('p', null, mt('businessprocess', 'No published process nodes at this level.')));
         }
     }
 

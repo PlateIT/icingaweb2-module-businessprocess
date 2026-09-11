@@ -7,6 +7,7 @@ namespace Icinga\Module\Businessprocess\Kubernetes;
 class ObjectRepository
 {
     protected static array $objects = [];
+    protected static array $unavailable = [];
 
     public static function beginCalculation(): void
     {
@@ -14,6 +15,7 @@ class ObjectRepository
         // one state calculation. A second calculation must observe a newer
         // API snapshot or an outage instead of inheriting the previous result.
         self::$objects = [];
+        self::$unavailable = [];
     }
 
     /** Validate and cache a selector snapshot before attaching any children. */
@@ -40,6 +42,9 @@ class ObjectRepository
     ): ?object
     {
         $key = self::cacheKey($kind, $uuid);
+        if (isset(self::$unavailable[$key])) {
+            throw self::$unavailable[$key];
+        }
         if (array_key_exists($key, self::$objects)) {
             $object = self::$objects[$key];
             self::assertCluster($object, $cluster);
@@ -89,7 +94,24 @@ class ObjectRepository
         }
 
         foreach (array_chunk(array_keys($expected), 1000) as $ids) {
-            $items = (new ApiClient())->post('resources/batch-get', ['ids' => $ids]);
+            $items = (new ApiClient())->post('resources/batch-get', ['ids' => $ids, 'partial' => true]);
+            // New APIs retain healthy results when another cluster is unavailable.
+            // Also accept the original list response shape.
+            if (! array_is_list($items)) {
+                if (! is_array($items['items'] ?? null) || ! array_is_list($items['items'])
+                    || ! is_array($items['unavailableIds'] ?? null) || ! array_is_list($items['unavailableIds'])
+                ) {
+                    throw new \RuntimeException('Kubernetes API returned an invalid partial batch');
+                }
+                foreach ($items['unavailableIds'] as $id) {
+                    if (! is_string($id) || ! in_array($id, $ids, true)) {
+                        throw new \RuntimeException('Kubernetes API returned an unexpected unavailable ID');
+                    }
+                    self::$unavailable[self::cacheKey($expected[$id]['kind'], $id)] =
+                        new \RuntimeException('Kubernetes resource source is unavailable');
+                }
+                $items = $items['items'];
+            }
             $found = [];
             foreach ($items as $item) {
                 if (! is_array($item) || ! is_string($item['id'] ?? null) || ! isset($expected[$item['id']])) {
@@ -112,7 +134,7 @@ class ObjectRepository
                 $found[$item['id']] = true;
             }
             foreach ($ids as $id) {
-                if (! isset($found[$id])) {
+                if (! isset($found[$id]) && ! isset(self::$unavailable[self::cacheKey($expected[$id]['kind'], $id)])) {
                     self::$objects[self::cacheKey($expected[$id]['kind'], $id)] = null;
                 }
             }
@@ -274,17 +296,19 @@ class ObjectRepository
             ) {
                 throw new \RuntimeException('Kubernetes API returned an invalid dependency graph');
             }
-            if ($response['freshness'] !== 'live') {
-                throw new \RuntimeException('Kubernetes dependency graph is not current');
-            }
             foreach ($chunk as $id) {
                 $key = $keysById[$id];
+                $freshness = $response['parentFreshness'][$id] ?? $response['freshness'];
+                if ($freshness !== 'live') {
+                    self::$unavailable[$key] = new \RuntimeException('Kubernetes dependency graph is not current');
+                    continue;
+                }
                 $children = $response['children'][$id] ?? [];
                 if (! is_array($children) || ! array_is_list($children)) {
                     throw new \RuntimeException('Kubernetes API returned invalid graph children');
                 }
                 foreach ($children as $child) {
-                    $object = self::object($child, $response['freshness']);
+                    $object = self::object($child, $freshness);
                     self::$objects[self::cacheKey($object->kind, $object->uuid)] = $object;
                     $result[$key][] = ['kind' => $object->kind, 'uuid' => $object->uuid];
                 }

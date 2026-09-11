@@ -178,7 +178,8 @@ check(array_keys($catalog) === ['status', 'components'], 'Health catalog is not 
 check(isset($catalog['components']['example-service']), 'Generated configuration component is missing');
 $healthConfig = $catalog['components']['example-service'];
 check(isset($healthConfig['components']['service']), 'Published root component is missing');
-check(isset($healthConfig['components']['service/database']), 'Published nested component is missing');
+check(! isset($healthConfig['components']['service/database']), 'Nested component leaked into configuration level');
+check(isset($health->node('example-service/service')['components']['service/database']), 'Direct child is missing');
 check(! isset($healthConfig['services'], $healthConfig['id']), 'Legacy public health fields leaked');
 check(
     $health->node('example-service/service')['details']['path'] === 'example-service/service',
@@ -251,13 +252,30 @@ $generated = $fixedConfig->createKubernetesNode('pod', '40000000-0000-4000-8000-
 $fixed->addChild($generated);
 $fixed->setExpandDependencies(true);
 $expandedHealth = $health->config('fixed-kubernetes');
-check(count($expandedHealth['components']) === 2, 'Expanded children must appear in public health');
+check(count($expandedHealth['components']) === 1, 'Configuration must list only root nodes');
+$fixedPath = PublicHealthService::pathForNode($fixedConfig, $fixed);
+check(count($health->node('fixed-kubernetes/' . $fixedPath)['components']) === 1, 'Expanded children must appear at their parent');
 $childPath = PublicHealthService::pathForNode($fixedConfig, $generated);
 $childHealth = $health->node('fixed-kubernetes/' . $childPath);
 check(isset($childHealth['details']['links']['parent']), 'Generated child must be addressable and link its parent');
+check($childHealth['components'] === [], 'Leaf must not list unrelated components');
 $fixed->setExpandDependencies(false);
 check(count($health->config('fixed-kubernetes')['components']) === 1, 'Disabled expansion must exclude generated children');
+check($health->node('fixed-kubernetes/' . $childPath) === null, 'Disabled expansion must hide the generated endpoint');
 $fixed->setExpandDependencies(true);
 $fixedConfig->getMetadata()->set('PublicApiScope', 'roots');
 check(count($health->config('fixed-kubernetes')['components']) === 1, 'Root scope must still exclude generated descendants');
 echo "Public health follows Kubernetes expansion and scope OK\n";
+
+$fixedConfig->getMetadata()->set('PublicApiScope', 'published');
+$grandchild = $fixedConfig->createBp('grandchild')->setPublicStatus(true)->setState(Node::ICINGA_CRITICAL);
+$generated->addChild($grandchild);
+$grandchildPath = PublicHealthService::pathForNode($fixedConfig, $grandchild);
+$parentResponse = $health->node('fixed-kubernetes/' . $fixedPath);
+check(array_keys($parentResponse['components']) === [$childPath], 'Parent must list direct children only');
+check(! isset($parentResponse['components'][$childPath]['components']), 'Child summaries must not recursively expand');
+check(isset($health->node('fixed-kubernetes/' . $childPath)['components'][$grandchildPath]), 'Grandchild must be available at the next level');
+check($health->node('fixed-kubernetes/' . $grandchildPath)['status'] === StatusMapper::DOWN, 'Nested node status was lost');
+$fixedConfig->getMetadata()->set('PublicApiRelations', 'none');
+check(array_keys($health->node('fixed-kubernetes/' . $childPath)['details']['links']) === ['self'], 'Disabled relation links must remain disabled');
+echo "One-level public health hierarchy and relation settings OK\n";
